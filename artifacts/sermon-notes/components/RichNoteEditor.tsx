@@ -162,6 +162,8 @@ export default function RichNoteEditor(props: Props) {
   const [highlightUiActive, setHighlightUiActive] = useState(false);
   const [highlightUiColor, setHighlightUiColor] = useState(HIGHLIGHT_COLORS[0]);
   const [dockPosition, setDockPosition] = useState<DockPosition | null>(null);
+  const [dockTipAlign, setDockTipAlign] = useState<'left' | 'right'>('right');
+  const [dockDragging, setDockDragging] = useState(false);
 
   const emitChange = () => {
     const editor = editorRef.current;
@@ -324,6 +326,7 @@ export default function RichNoteEditor(props: Props) {
       baseY: dock.top - shell.top,
       moved: false,
     };
+    setDockDragging(true);
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
@@ -341,10 +344,11 @@ export default function RichNoteEditor(props: Props) {
 
     const maxX = Math.max(4, shell.width - dock.width - 4);
     const maxY = Math.max(8, shell.height - dock.height - 8);
-    setDockPosition({
-      x: Math.min(maxX, Math.max(4, drag.baseX + dx)),
-      y: Math.min(maxY, Math.max(8, drag.baseY + dy)),
-    });
+    const nextX = Math.min(maxX, Math.max(4, drag.baseX + dx));
+    const nextY = Math.min(maxY, Math.max(8, drag.baseY + dy));
+
+    setDockTipAlign(nextX < shell.width / 2 ? 'left' : 'right');
+    setDockPosition({ x: nextX, y: nextY });
   };
 
   const endDockDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -355,11 +359,13 @@ export default function RichNoteEditor(props: Props) {
     event.stopPropagation();
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     dockDragRef.current = null;
+    setDockDragging(false);
     if (!drag.moved) setHighlightActive(!highlightUiActive, highlightUiColor);
   };
 
   const cancelDockDrag = () => {
     dockDragRef.current = null;
+    setDockDragging(false);
   };
 
   const chooseColorFromControl = (event: React.PointerEvent<HTMLButtonElement>, color: string) => {
@@ -409,7 +415,26 @@ export default function RichNoteEditor(props: Props) {
         .erase-dot { width: 26px; height: 26px; border-radius: 13px; background: rgba(255,255,255,.08); border: 1px solid rgba(127,127,127,.35); position: relative; }
         .erase-dot::after { content: ''; position: absolute; width: 20px; height: 2px; background: ${props.placeholderColor}; transform: rotate(-45deg); left: 2px; top: 11px; border-radius: 2px; }
         .highlight-close { width: 32px; height: 28px; border-radius: 12px; color: ${props.placeholderColor}; box-shadow: none; background: transparent; }
-        .highlight-tip { max-width: 112px; padding: 6px 8px; border-radius: 10px; background: rgba(30,36,31,.94); border: 1px solid rgba(127,127,127,.2); color: ${props.placeholderColor}; font-size: 10px; line-height: 13px; text-align: center; }
+        .highlight-tip {
+          position: absolute;
+          top: calc(100% + 7px);
+          width: 104px;
+          max-width: calc(100vw - 12px);
+          padding: 6px 8px;
+          border-radius: 10px;
+          background: rgba(30,36,31,.94);
+          border: 1px solid rgba(127,127,127,.2);
+          color: ${props.placeholderColor};
+          font-size: 10px;
+          line-height: 13px;
+          text-align: center;
+          pointer-events: none;
+          opacity: .84;
+          transition: opacity .16s ease;
+        }
+        .highlight-tip.align-left { left: 0; }
+        .highlight-tip.align-right { right: 0; }
+        .highlight-tip.dragging { opacity: 0; }
       `}</style>
 
       <div
@@ -517,7 +542,9 @@ export default function RichNoteEditor(props: Props) {
                 ×
               </button>
             </div>
-            <div className="highlight-tip">{highlightUiColor === ERASE_HIGHLIGHT ? 'Swipe highlighted words to erase' : 'Swipe words to highlight'}</div>
+            <div className={`highlight-tip ${dockTipAlign === 'left' ? 'align-left' : 'align-right'}${dockDragging ? ' dragging' : ''}`}>
+              {highlightUiColor === ERASE_HIGHLIGHT ? 'Swipe highlighted words to erase' : 'Swipe words to highlight'}
+            </div>
           </>
         ) : null}
       </div>
