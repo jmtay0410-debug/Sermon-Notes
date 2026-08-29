@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Animated,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -38,6 +39,7 @@ export default function NoteScreen() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [biblePreview, setBiblePreview] = useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const keyboardOffset = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     setActiveSermonId(id ?? null);
@@ -45,13 +47,32 @@ export default function NoteScreen() {
   }, [id, setActiveSermonId]);
 
   React.useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSubscription = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardVisible(true);
+      Animated.timing(keyboardOffset, {
+        toValue: -event.endCoordinates.height,
+        duration: event.duration || 250,
+        useNativeDriver: true,
+      }).start();
+    });
+
+    const hideSubscription = Keyboard.addListener(hideEvent, (event) => {
+      setKeyboardVisible(false);
+      Animated.timing(keyboardOffset, {
+        toValue: 0,
+        duration: event.duration || 220,
+        useNativeDriver: true,
+      }).start();
+    });
+
     return () => {
       showSubscription.remove();
       hideSubscription.remove();
     };
-  }, []);
+  }, [keyboardOffset]);
 
   const reference = useMemo(
     () => sermon?.notes.match(/\b(?:John|Romans|Matthew|Mark|Luke|Psalms?|Ephesians|1 Corinthians|2 Corinthians)\s+\d+(?::\d+(?:-\d+)?)?/i)?.[0],
@@ -101,11 +122,7 @@ export default function NoteScreen() {
 
   return (
     <Screen scroll={false} style={styles.screen}>
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
-      >
+      <View style={styles.noteLayout}>
         <View style={styles.noteHeader}>
           <IconButton icon="chevron-left" label="Back" onPress={() => router.back()} />
 
@@ -117,26 +134,6 @@ export default function NoteScreen() {
               {sermon.mainScripture || 'Add a passage'} · {sermon.pastor} · {formatDate(sermon.date)}
             </Text>
           </View>
-
-          {keyboardVisible ? (
-            <Pressable
-              testID="Header dismiss keyboard"
-              accessibilityLabel="Hide keyboard"
-              onPress={Keyboard.dismiss}
-              hitSlop={8}
-              style={({ pressed }) => [
-                styles.headerKeyboardButton,
-                {
-                  backgroundColor: colors.secondary,
-                  borderColor: colors.border,
-                  opacity: pressed ? 0.6 : 1,
-                },
-              ]}
-            >
-              <Feather name="chevron-down" size={16} color={colors.primary} />
-              <Text style={[styles.headerKeyboardText, { color: colors.secondaryForeground }]}>Done</Text>
-            </Pressable>
-          ) : null}
 
           <Pressable
             testID="Finish sermon"
@@ -200,66 +197,75 @@ export default function NoteScreen() {
           </Pressable>
         ) : null}
 
-        <View style={[styles.toolbar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.toolbarRow}>
-            <Pressable
-              testID="Dismiss keyboard"
-              accessibilityLabel="Dismiss keyboard"
-              onPress={Keyboard.dismiss}
-              style={({ pressed }) => [
-                styles.keyboardButton,
-                { backgroundColor: colors.secondary, opacity: pressed ? 0.6 : 1 },
-              ]}
-            >
-              <Feather name="chevron-down" size={17} color={colors.primary} />
-              <Text style={[styles.keyboardText, { color: colors.secondaryForeground }]}>Done</Text>
-            </Pressable>
+        <Animated.View
+          style={[
+            styles.keyboardDock,
+            {
+              transform: [{ translateY: keyboardOffset }],
+            },
+          ]}
+        >
+          <View style={[styles.toolbar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.toolbarRow}>
+              <Pressable
+                testID="Dismiss keyboard"
+                accessibilityLabel="Dismiss keyboard"
+                onPress={Keyboard.dismiss}
+                style={({ pressed }) => [
+                  styles.keyboardButton,
+                  { backgroundColor: colors.secondary, opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
+                <Feather name="chevron-down" size={17} color={colors.primary} />
+                <Text style={[styles.keyboardText, { color: colors.secondaryForeground }]}>Done</Text>
+              </Pressable>
 
-            <Pressable
-              accessibilityLabel="Formatting tools"
-              onPress={() => setToolbarOpen((open) => !open)}
-              style={({ pressed }) => [styles.formatButton, { opacity: pressed ? 0.6 : 1 }]}
-            >
-              <Feather name={toolbarOpen ? 'chevron-down' : 'sliders'} size={18} color={colors.primary} />
-              <Text style={[styles.toolbarLabel, { color: colors.primary }]}>
-                {toolbarOpen ? 'Hide tools' : 'Format'}
-              </Text>
-            </Pressable>
+              <Pressable
+                accessibilityLabel="Formatting tools"
+                onPress={() => setToolbarOpen((open) => !open)}
+                style={({ pressed }) => [styles.formatButton, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                <Feather name={toolbarOpen ? 'chevron-down' : 'sliders'} size={18} color={colors.primary} />
+                <Text style={[styles.toolbarLabel, { color: colors.primary }]}>
+                  {toolbarOpen ? 'Hide tools' : 'Format'}
+                </Text>
+              </Pressable>
 
-            <View style={styles.quickActions}>
-              {categories.filter((item) => item.kind !== 'scriptures').slice(0, 3).map((item) => (
-                <Pressable
-                  key={item.kind}
-                  onPress={() => openCategory(item)}
-                  style={({ pressed }) => [
-                    styles.quickAction,
-                    { backgroundColor: colors.secondary, opacity: pressed ? 0.7 : 1 },
-                  ]}
-                >
-                  <Feather name={item.icon} size={14} color={colors.primary} />
-                  <Text style={[styles.quickActionText, { color: colors.secondaryForeground }]}>{item.label}</Text>
-                </Pressable>
-              ))}
+              <View style={styles.quickActions}>
+                {categories.filter((item) => item.kind !== 'scriptures').slice(0, 3).map((item) => (
+                  <Pressable
+                    key={item.kind}
+                    onPress={() => openCategory(item)}
+                    style={({ pressed }) => [
+                      styles.quickAction,
+                      { backgroundColor: colors.secondary, opacity: pressed ? 0.7 : 1 },
+                    ]}
+                  >
+                    <Feather name={item.icon} size={14} color={colors.primary} />
+                    <Text style={[styles.quickActionText, { color: colors.secondaryForeground }]}>{item.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
+
+            {toolbarOpen ? (
+              <View style={styles.toolbarExpanded}>
+                <ToolbarButton icon="bold" label="Bold" onPress={() => insertText('**bold**')} />
+                <ToolbarButton icon="italic" label="Italic" onPress={() => insertText('_italic_')} />
+                <ToolbarButton icon="list" label="Bullets" onPress={() => insertText('\n• ')} />
+                <ToolbarButton icon="hash" label="Heading" onPress={() => insertText('\n## ')} />
+                <ToolbarButton icon="message-circle" label="Quote" onPress={() => insertText('\n“ “')} />
+                <ToolbarButton icon="edit-3" label="Highlight" onPress={() => insertText(' ==highlight==')} />
+              </View>
+            ) : null}
           </View>
 
-          {toolbarOpen ? (
-            <View style={styles.toolbarExpanded}>
-              <ToolbarButton icon="bold" label="Bold" onPress={() => insertText('**bold**')} />
-              <ToolbarButton icon="italic" label="Italic" onPress={() => insertText('_italic_')} />
-              <ToolbarButton icon="list" label="Bullets" onPress={() => insertText('\n• ')} />
-              <ToolbarButton icon="hash" label="Heading" onPress={() => insertText('\n## ')} />
-              <ToolbarButton icon="message-circle" label="Quote" onPress={() => insertText('\n“ “')} />
-              <ToolbarButton icon="edit-3" label="Highlight" onPress={() => insertText(' ==highlight==')} />
-            </View>
-          ) : null}
-        </View>
-
-        <Pressable onPress={() => openCategory(categories[3])} style={[styles.addMoment, { borderColor: colors.border }]}>
-          <Feather name="plus" size={15} color={colors.primary} />
-          <Text style={[styles.addMomentText, { color: colors.primary }]}>Add a moment</Text>
-        </Pressable>
-      </KeyboardAvoidingView>
+          <Pressable onPress={() => openCategory(categories[3])} style={[styles.addMoment, { borderColor: colors.border }]}>
+            <Feather name="plus" size={15} color={colors.primary} />
+            <Text style={[styles.addMomentText, { color: colors.primary }]}>Add a moment</Text>
+          </Pressable>
+        </Animated.View>
+      </View>
 
       <Modal transparent animationType="slide" visible={!!category} onRequestClose={closeCategory} statusBarTranslucent>
         <KeyboardAvoidingView
@@ -363,24 +369,13 @@ function ToolbarButton({ icon, label, onPress }: { icon: keyof typeof Feather.gl
 
 const styles = StyleSheet.create({
   screen: { flex: 1, gap: 0 },
-  keyboardView: { flex: 1, gap: 8 },
+  noteLayout: { flex: 1, gap: 8 },
   noteHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   noteHeading: { flex: 1, gap: 3, minWidth: 0 },
   noteTitle: { fontSize: 17, fontWeight: '700' },
   noteMeta: { fontSize: 11 },
   finishButton: { paddingVertical: 9, paddingLeft: 5 },
   finishText: { fontSize: 14, fontWeight: '700' },
-  headerKeyboardButton: {
-    minHeight: 34,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  headerKeyboardText: { fontSize: 12, fontWeight: '700' },
   detailToggle: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 2 },
   saveDot: { width: 6, height: 6, borderRadius: 3 },
   detailToggleText: { fontSize: 11, fontWeight: '600' },
@@ -390,6 +385,7 @@ const styles = StyleSheet.create({
   editor: { flex: 1, paddingHorizontal: 1, paddingVertical: 8, fontSize: 18, lineHeight: 29 },
   referencePill: { alignSelf: 'flex-start', borderRadius: 11, paddingHorizontal: 11, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
   referencePillText: { fontSize: 13, fontWeight: '700' },
+  keyboardDock: { gap: 8 },
   toolbar: { borderWidth: 1, borderRadius: 14, padding: 8, gap: 9 },
   toolbarRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   keyboardButton: { height: 35, borderRadius: 9, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 4 },
