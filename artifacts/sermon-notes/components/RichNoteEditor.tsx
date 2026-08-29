@@ -5,16 +5,16 @@ import type { Ref } from 'react';
 import { useDOMImperativeHandle, type DOMImperativeFactory } from 'expo/dom';
 
 export interface RichNoteEditorRef extends DOMImperativeFactory {
-  focus: () => void;
-  bold: () => void;
-  italic: () => void;
-  underline: () => void;
-  bullets: () => void;
-  heading: () => void;
-  quote: () => void;
-  insertText: (text: string) => void;
-  setHighlightMode: (enabled: boolean, color: string) => void;
-  setHighlightColor: (color: string) => void;
+  focus: (...args: any[]) => void;
+  bold: (...args: any[]) => void;
+  italic: (...args: any[]) => void;
+  underline: (...args: any[]) => void;
+  bullets: (...args: any[]) => void;
+  heading: (...args: any[]) => void;
+  quote: (...args: any[]) => void;
+  insertText: (...args: any[]) => void;
+  setHighlightMode: (...args: any[]) => void;
+  setHighlightColor: (...args: any[]) => void;
 }
 
 type CaretPoint = { node: Node; offset: number };
@@ -166,8 +166,8 @@ export default function RichNoteEditor(props: Props) {
   };
 
   useDOMImperativeHandle(
-    props.ref,
-    () => ({
+    props.ref as never,
+    (): RichNoteEditorRef => ({
       focus: () => editorRef.current?.focus(),
       bold: () => runCommand('bold'),
       italic: () => runCommand('italic'),
@@ -175,13 +175,16 @@ export default function RichNoteEditor(props: Props) {
       bullets: () => runCommand('insertUnorderedList'),
       heading: () => runCommand('formatBlock', 'h2'),
       quote: () => runCommand('formatBlock', 'blockquote'),
-      insertText: (text: string) => {
+      insertText: (...args: any[]) => {
+        const text = typeof args[0] === 'string' ? args[0] : '';
         restoreSelection();
         document.execCommand('insertText', false, text);
         saveSelection();
         emitChange();
       },
-      setHighlightMode: (enabled: boolean, color: string) => {
+      setHighlightMode: (...args: any[]) => {
+        const enabled = Boolean(args[0]);
+        const color = typeof args[1] === 'string' ? args[1] : highlightColorRef.current;
         highlightModeRef.current = enabled;
         highlightColorRef.current = color;
         const editor = editorRef.current;
@@ -190,7 +193,8 @@ export default function RichNoteEditor(props: Props) {
         editor.style.setProperty('--highlight-color', color);
         if (enabled) editor.blur();
       },
-      setHighlightColor: (color: string) => {
+      setHighlightColor: (...args: any[]) => {
+        const color = typeof args[0] === 'string' ? args[0] : highlightColorRef.current;
         highlightColorRef.current = color;
         editorRef.current?.style.setProperty('--highlight-color', color);
       },
