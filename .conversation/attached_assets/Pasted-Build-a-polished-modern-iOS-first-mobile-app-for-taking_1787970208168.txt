@@ -1,0 +1,392 @@
+Build a polished, modern iOS-first mobile app for taking notes during church sermons. The app should feel purpose-built for Christians attending church, not like a generic notes app with Christian branding added to it.
+
+WORKING APP NAME:
+Use “Sermon Notes” as a temporary working name. The name will be changed later.
+
+CORE PURPOSE:
+The app should make it extremely easy for someone sitting in church to take organized sermon notes, capture Bible verses, save important takeaways, record prayers and applications, and return to those notes throughout the week.
+
+The experience should be extremely simple and distraction-free. A user should be able to open the app, tap “New Sermon,” and begin taking notes within seconds.
+
+DESIGN DIRECTION:
+Create a premium, peaceful, modern Christian aesthetic.
+
+Avoid cheesy or overly decorative religious graphics.
+
+Use:
+- Clean typography
+- Generous spacing
+- Rounded cards and buttons
+- Subtle shadows
+- Warm off-white/cream backgrounds
+- Muted earth tones
+- Dark charcoal text
+- Tasteful accent colors such as sage green, warm tan, or muted gold
+- Simple line icons
+- Large, easy-to-tap controls
+
+The app should feel calm and inviting while someone is sitting in church.
+
+Support both Light Mode and Dark Mode.
+
+Do not clutter screens with unnecessary buttons.
+
+NAVIGATION:
+Use a simple bottom navigation bar with approximately four main areas:
+
+1. Home
+2. Sermons
+3. Bible
+4. Profile/Settings
+
+HOME SCREEN:
+Create a welcoming dashboard.
+
+At the top, display a simple greeting and the current date.
+
+The most prominent action should be a large “New Sermon” button.
+
+Below it, include:
+
+RECENT SERMONS
+Show the user’s most recent sermon notes as attractive cards.
+
+Each card should display:
+- Sermon title
+- Church
+- Pastor/speaker
+- Date
+- Main Bible passage
+- Small preview of the notes
+
+THIS WEEK
+Display important takeaways or applications the user previously marked to remember.
+
+PRAYERS
+Display a small preview of recent prayer items saved from sermons.
+
+Keep the Home screen useful but uncluttered.
+
+NEW SERMON FLOW:
+When the user taps “New Sermon,” open a simple setup screen.
+
+Include fields for:
+- Sermon title
+- Church name
+- Pastor/speaker
+- Sermon series
+- Date
+- Main Bible passage
+
+The date should automatically default to today.
+
+None of these fields should prevent the user from starting notes. Make it possible to immediately begin writing.
+
+Include a large “Start Taking Notes” button.
+
+SERMON NOTE SCREEN:
+This is the most important screen in the entire application.
+
+Prioritize the note editor above everything else.
+
+At the top, display:
+- Sermon title
+- Main Scripture
+- Pastor
+- Date
+
+Then provide a large distraction-free note editor.
+
+The user should be able to type continuously during the sermon without dealing with complicated formatting.
+
+Include a small formatting toolbar with:
+- Bold
+- Italic
+- Bullet list
+- Numbered list
+- Heading
+- Quote
+- Highlight
+
+SPECIAL SERMON NOTE ACTIONS:
+Allow users to select text or create special blocks categorized as:
+
+KEY POINT
+An important statement from the sermon.
+
+SCRIPTURE
+A Bible verse or reference.
+
+PRAYER
+Something the user wants to pray about.
+
+APPLICATION
+Something the user feels they should apply to their life.
+
+REMEMBER
+Something the user wants to be reminded of later in the week.
+
+Use small, tasteful icons and subtle visual differences between these categories.
+
+BIBLE REFERENCE RECOGNITION:
+Design the app so Bible references typed inside notes can eventually be automatically recognized.
+
+Examples:
+John 3:16
+Romans 8:28
+Matthew 5:3-12
+1 Corinthians 13:4-7
+Psalm 23
+
+Recognized Bible references should visually appear as tappable links.
+
+When tapped, open a bottom sheet or small overlay showing the Bible passage WITHOUT taking the user away from their sermon notes.
+
+The user should be able to close the Bible passage and immediately continue typing exactly where they left off.
+
+For the initial prototype, this functionality may use placeholder Scripture data if a Bible API has not yet been connected.
+
+SERMON SUMMARY:
+When the user finishes taking notes, provide a “Finish Sermon” option.
+
+Create a beautifully organized sermon recap containing:
+
+- Sermon title
+- Church
+- Pastor
+- Date
+- Main passage
+- Full notes
+- Scriptures mentioned
+- Key Points
+- Applications
+- Prayer items
+- Things marked “Remember”
+
+Do not require AI for the basic summary. Organize information based on the categories the user created while taking notes.
+
+SERMON LIBRARY:
+Create a Sermons screen containing all previous sermon notes.
+
+Allow users to:
+- Search
+- Sort by date
+- Filter by church
+- Filter by pastor
+- Filter by sermon series
+- Filter by Bible book
+
+Display sermons using clean cards.
+
+Users should be able to tap any sermon to reopen and edit their notes.
+
+SEARCH:
+Create powerful local search.
+
+Users should eventually be able to search phrases such as:
+“faith”
+“Romans 8”
+“Pastor Michael”
+“forgiveness”
+
+Search across:
+- Sermon titles
+- Notes
+- Bible references
+- Pastors
+- Churches
+- Series
+- Key Points
+- Applications
+- Prayer items
+
+BIBLE SECTION:
+Create a Bible section that can eventually contain a full Bible translation.
+
+For the prototype, design the interface and use placeholder/sample Bible text where necessary.
+
+The Bible screen should include:
+- Bible book selector
+- Chapter selector
+- Scripture text
+- Search
+- Ability to select a verse
+- “Add to Sermon Notes”
+- “Save Verse”
+
+Clearly distinguish actual Scripture text from user notes, commentary, or future AI-generated content.
+
+SAVED VERSES:
+Allow users to save/favorite Bible verses.
+
+Provide a simple area where saved verses can be viewed later.
+
+WEEKLY REMINDERS:
+Design the data structure to support reminders.
+
+When a user marks something as “Remember” or “Application,” the app should eventually be capable of sending a notification later in the week.
+
+Example:
+
+Sunday sermon:
+“Spend time praying before making major decisions.”
+
+Wednesday notification:
+“From Sunday’s sermon: Spend time praying before making major decisions.”
+
+Do not require notification functionality for the initial prototype if it adds unnecessary complexity, but structure the app so it can be added later.
+
+PRAYER SECTION:
+Allow prayer items created during sermons to be saved.
+
+Eventually users should be able to:
+- View active prayers
+- Mark prayers as answered
+- Add a date
+- See which sermon the prayer originated from
+
+LOCAL DATA AND PRIVACY:
+For the first version, DO NOT require users to create an account.
+
+Store sermon notes and related data locally on the user’s device.
+
+Design the data model so iCloud synchronization can be added later.
+
+Users should feel that their private sermon notes and prayers belong to them.
+
+Include the ability to eventually export or back up notes so users are not permanently locked into the application.
+
+DATA MODELS:
+Create sensible data structures for:
+
+Sermon
+- id
+- title
+- church
+- pastor
+- series
+- date
+- mainScripture
+- notes
+- createdAt
+- updatedAt
+
+KeyPoint
+- id
+- sermonId
+- text
+
+ScriptureReference
+- id
+- sermonId
+- reference
+- verseText
+
+Prayer
+- id
+- sermonId
+- text
+- createdAt
+- answered
+- answeredDate
+
+Application
+- id
+- sermonId
+- text
+- completed
+
+ReminderItem
+- id
+- sermonId
+- text
+- reminderDate
+
+SavedVerse
+- id
+- reference
+- verseText
+- dateSaved
+
+MONETIZATION:
+Do NOT design the application around advertisements or a required monthly subscription.
+
+The core note-taking experience should be useful without recurring payments.
+
+Design the architecture so a one-time “Pro” purchase could eventually unlock premium features.
+
+Possible future Pro features:
+- Advanced themes
+- PDF sermon exports
+- Advanced organization
+- Additional templates
+- Enhanced backup options
+- AI-assisted sermon summaries
+
+AI features should NEVER replace Scripture or present generated text as if it were Scripture.
+
+Any future AI-generated explanations or summaries must be clearly labeled as generated content.
+
+FUTURE CHURCH FEATURES:
+Do not build these fully yet, but keep the architecture expandable.
+
+Eventually churches may have profiles.
+
+A church or pastor could publish a Sunday sermon outline containing:
+- Sermon title
+- Speaker
+- Main Scripture
+- Outline
+- Scripture references
+- Discussion questions
+
+A church member could open that sermon and take their own private notes underneath the official outline.
+
+The congregation’s personal notes should remain private.
+
+ACCESSIBILITY:
+Make controls easy to use during a live church service.
+
+Use:
+- Large tap targets
+- Readable font sizes
+- Strong contrast
+- Dynamic text support
+- Simple navigation
+
+Typing should always remain the highest priority on the sermon note screen.
+
+IMPORTANT USER EXPERIENCE PRINCIPLE:
+Never make users fight the application while listening to a sermon.
+
+The user may only have a few seconds to capture something the pastor says.
+
+Actions should require as few taps as possible.
+
+Saving should happen automatically.
+
+Do not require users to manually press Save repeatedly.
+
+If the user accidentally closes the application, their sermon notes should still be there when they return.
+
+FIRST VERSION PRIORITIES:
+Focus development primarily on:
+
+1. Beautiful Home screen
+2. Create New Sermon
+3. Excellent sermon note-taking interface
+4. Automatic local saving
+5. Sermon library
+6. Search
+7. Key Points
+8. Prayer items
+9. Applications
+10. Scripture references
+11. Saved verses
+12. Settings
+
+Do NOT overcomplicate Version 1 with social networking, messaging, church administration, complicated accounts, or unnecessary AI.
+
+Most importantly, make the application feel like it was designed specifically for someone sitting in church taking sermon notes.
+
+The goal is for someone who currently uses Apple Notes for sermons to immediately understand why this application provides a better experience.

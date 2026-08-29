@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/"
+title = "Sermon Notes"
+description = "An iOS-first sermon note-taking app for Christians, with a calm home dashboard, fast note capture, local persistence, sermon organization, Bible references, prayers, applications, and saved verses."
+version = "1.0.0"
+id = "artifacts/sermon-notes"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/" ]
+localPort = 19563
+
+[services.development]
+run = "pnpm --filter @workspace/sermon-notes run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/sermon-notes", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/sermon-notes", "run", "serve" ]
+
+[services.env]
+PORT = "19563"
+BASE_PATH = "/"
