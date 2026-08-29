@@ -9,6 +9,9 @@ dist/
 web-build/
 expo-env.d.ts
 
+# generated branding assets
+assets/images/context-icon.generated.png
+
 # Native
 ios/
 android/
