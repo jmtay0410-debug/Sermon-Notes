@@ -27,8 +27,6 @@ const categories = [
   { kind: 'reminders' as const, label: 'Remember', icon: 'bookmark' as const, description: 'A thought you want to keep close.' },
 ];
 
-const highlightColors = ['#F6E27A', '#BFE3C0', '#B8DDF6', '#F4BDD0', '#F4C37D'];
-
 const escapeHtml = (value: string) => value
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -53,8 +51,6 @@ export default function NoteScreen() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [biblePreview, setBiblePreview] = useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [highlightMode, setHighlightMode] = useState(false);
-  const [highlightColor, setHighlightColor] = useState(highlightColors[0]);
 
   React.useEffect(() => {
     setActiveSermonId(id ?? null);
@@ -91,23 +87,7 @@ export default function NoteScreen() {
   }
 
   const disableHighlightMode = () => {
-    if (!highlightMode) return;
-    setHighlightMode(false);
-    editorRef.current?.setHighlightMode(false, highlightColor);
-  };
-
-  const toggleHighlightMode = () => {
-    const next = !highlightMode;
-    setHighlightMode(next);
-    if (next) Keyboard.dismiss();
-    editorRef.current?.setHighlightMode(next, highlightColor);
-    Haptics.selectionAsync();
-  };
-
-  const chooseHighlightColor = (color: string) => {
-    setHighlightColor(color);
-    editorRef.current?.setHighlightColor(color);
-    Haptics.selectionAsync();
+    editorRef.current?.setHighlightMode(false);
   };
 
   const insertText = (value: string) => {
@@ -142,6 +122,10 @@ export default function NoteScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
+  const topMomentActions = categories.filter(
+    (item) => item.kind === 'keyPoints' || item.kind === 'prayers' || item.kind === 'applications'
+  );
+
   return (
     <Screen scroll={false} style={styles.screen}>
       <View style={styles.noteLayout}>
@@ -173,21 +157,44 @@ export default function NoteScreen() {
         </View>
 
         <View style={styles.formatArea}>
-          <Pressable
-            accessibilityLabel="Formatting tools"
-            onPress={() => setToolbarOpen((open) => !open)}
-            style={({ pressed }) => [
-              styles.topFormatButton,
-              {
-                backgroundColor: colors.secondary,
-                borderColor: colors.border,
-                opacity: pressed ? 0.65 : 1,
-              },
-            ]}
-          >
-            <Feather name={toolbarOpen ? 'chevron-up' : 'sliders'} size={16} color={colors.primary} />
-            <Text style={[styles.topFormatText, { color: colors.secondaryForeground }]}>Formatting</Text>
-          </Pressable>
+          <View style={styles.topActionRow}>
+            <Pressable
+              accessibilityLabel="Formatting tools"
+              onPress={() => setToolbarOpen((open) => !open)}
+              style={({ pressed }) => [
+                styles.topFormatButton,
+                {
+                  backgroundColor: colors.secondary,
+                  borderColor: colors.border,
+                  opacity: pressed ? 0.65 : 1,
+                },
+              ]}
+            >
+              <Feather name={toolbarOpen ? 'chevron-up' : 'sliders'} size={15} color={colors.primary} />
+              <Text style={[styles.topFormatText, { color: colors.secondaryForeground }]}>Formatting</Text>
+            </Pressable>
+
+            {topMomentActions.map((item) => (
+              <Pressable
+                key={item.kind}
+                accessibilityLabel={`Add ${item.label}`}
+                onPress={() => openCategory(item)}
+                style={({ pressed }) => [
+                  styles.topQuickAction,
+                  {
+                    backgroundColor: colors.secondary,
+                    borderColor: colors.border,
+                    opacity: pressed ? 0.68 : 1,
+                  },
+                ]}
+              >
+                <Feather name={item.icon} size={13} color={colors.primary} />
+                <Text numberOfLines={1} style={[styles.topQuickActionText, { color: colors.secondaryForeground }]}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
 
           {toolbarOpen ? (
             <View style={[styles.topFormatPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -197,12 +204,7 @@ export default function NoteScreen() {
               <FormatTool icon="list" label="Bullets" onPress={() => editorRef.current?.bullets()} />
               <FormatTool icon="type" label="Heading" onPress={() => editorRef.current?.heading()} />
               <FormatTool icon="message-square" label="Quote" onPress={() => editorRef.current?.quote()} />
-              <FormatTool icon="edit-3" label="Highlight" active={highlightMode} onPress={toggleHighlightMode} />
             </View>
-          ) : null}
-
-          {highlightMode ? (
-            <Text style={[styles.highlightHint, { color: colors.mutedForeground }]}>Swipe across words to highlight · tap Highlight again to exit</Text>
           ) : null}
         </View>
 
@@ -268,60 +270,23 @@ export default function NoteScreen() {
         ) : null}
 
         <KeyboardStickyView offset={{ closed: 0, opened: 0 }} style={styles.keyboardDock}>
-          <View style={[styles.toolbar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.toolbarRow}>
-              <Pressable
-                testID="Dismiss keyboard"
-                accessibilityLabel="Dismiss keyboard"
-                onPress={Keyboard.dismiss}
-                style={({ pressed }) => [
-                  styles.keyboardButton,
-                  { backgroundColor: colors.secondary, opacity: pressed ? 0.6 : 1 },
-                ]}
-              >
-                <Feather name="chevron-down" size={17} color={colors.primary} />
-                <Text style={[styles.keyboardText, { color: colors.secondaryForeground }]}>Done</Text>
-              </Pressable>
-
-              <View style={styles.quickActions}>
-                {categories.filter((item) => item.kind !== 'scriptures').slice(0, 3).map((item) => (
-                  <Pressable
-                    key={item.kind}
-                    onPress={() => openCategory(item)}
-                    style={({ pressed }) => [
-                      styles.quickAction,
-                      { backgroundColor: colors.secondary, opacity: pressed ? 0.7 : 1 },
-                    ]}
-                  >
-                    <Feather name={item.icon} size={14} color={colors.primary} />
-                    <Text style={[styles.quickActionText, { color: colors.secondaryForeground }]}>{item.label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          </View>
+          <Pressable
+            testID="Dismiss keyboard"
+            accessibilityLabel="Dismiss keyboard"
+            onPress={Keyboard.dismiss}
+            style={({ pressed }) => [
+              styles.keyboardButton,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                opacity: pressed ? 0.6 : 1,
+              },
+            ]}
+          >
+            <Feather name="chevron-down" size={17} color={colors.primary} />
+            <Text style={[styles.keyboardText, { color: colors.foreground }]}>Done</Text>
+          </Pressable>
         </KeyboardStickyView>
-
-        {highlightMode ? (
-          <View style={[styles.highlightPalette, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Pressable accessibilityLabel="Close highlight mode" onPress={toggleHighlightMode} style={styles.paletteClose}>
-              <Feather name="x" size={16} color={colors.mutedForeground} />
-            </Pressable>
-            {highlightColors.map((color) => (
-              <Pressable
-                key={color}
-                accessibilityLabel={`Choose highlight color ${color}`}
-                onPress={() => chooseHighlightColor(color)}
-                style={[
-                  styles.highlightSwatchWrap,
-                  { borderColor: color === highlightColor ? colors.foreground : 'transparent' },
-                ]}
-              >
-                <View style={[styles.highlightSwatch, { backgroundColor: color }]} />
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
       </View>
 
       <Modal transparent animationType="slide" visible={!!category} onRequestClose={closeCategory} statusBarTranslucent>
@@ -412,12 +377,10 @@ function FormatTool({
   icon,
   label,
   onPress,
-  active = false,
 }: {
   icon: keyof typeof Feather.glyphMap;
   label: string;
   onPress: () => void;
-  active?: boolean;
 }) {
   const colors = useColors();
   return (
@@ -427,13 +390,13 @@ function FormatTool({
       style={({ pressed }) => [
         styles.formatTool,
         {
-          backgroundColor: active ? colors.accent : colors.secondary,
-          borderColor: active ? colors.primary : 'transparent',
+          backgroundColor: colors.secondary,
+          borderColor: 'transparent',
           opacity: pressed ? 0.65 : 1,
         },
       ]}
     >
-      <Feather name={icon} size={17} color={active ? colors.accentForeground : colors.secondaryForeground} />
+      <Feather name={icon} size={17} color={colors.secondaryForeground} />
     </Pressable>
   );
 }
@@ -448,11 +411,13 @@ const styles = StyleSheet.create({
   finishButton: { paddingVertical: 9, paddingLeft: 5 },
   finishText: { fontSize: 14, fontWeight: '700' },
   formatArea: { gap: 6 },
-  topFormatButton: { alignSelf: 'flex-start', minHeight: 34, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  topFormatText: { fontSize: 12, fontWeight: '700' },
+  topActionRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  topFormatButton: { minHeight: 34, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  topFormatText: { fontSize: 10, fontWeight: '700' },
+  topQuickAction: { minHeight: 34, borderWidth: 1, borderRadius: 10, paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
+  topQuickActionText: { fontSize: 10, fontWeight: '700', flexShrink: 1 },
   topFormatPanel: { borderWidth: 1, borderRadius: 13, padding: 7, flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'flex-start' },
   formatTool: { width: 37, height: 37, borderRadius: 9, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  highlightHint: { fontSize: 10, fontWeight: '600', paddingLeft: 2 },
   detailToggle: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 2 },
   saveDot: { width: 6, height: 6, borderRadius: 3 },
   detailToggleText: { fontSize: 11, fontWeight: '600' },
@@ -461,18 +426,9 @@ const styles = StyleSheet.create({
   editorArea: { flex: 1, minHeight: 180, overflow: 'hidden' },
   referencePill: { alignSelf: 'flex-start', borderRadius: 11, paddingHorizontal: 11, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
   referencePillText: { fontSize: 13, fontWeight: '700' },
-  keyboardDock: { marginBottom: 0 },
-  toolbar: { borderWidth: 1, borderRadius: 14, padding: 8 },
-  toolbarRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  keyboardButton: { height: 35, borderRadius: 9, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  keyboardDock: { marginBottom: 0, alignItems: 'flex-start' },
+  keyboardButton: { height: 38, borderWidth: 1, borderRadius: 12, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 5 },
   keyboardText: { fontSize: 12, fontWeight: '700' },
-  quickActions: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end', gap: 5 },
-  quickAction: { paddingHorizontal: 7, paddingVertical: 7, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  quickActionText: { fontSize: 10, fontWeight: '700' },
-  highlightPalette: { position: 'absolute', right: 2, top: 150, zIndex: 30, elevation: 8, borderWidth: 1, borderRadius: 18, paddingVertical: 7, paddingHorizontal: 5, gap: 5, alignItems: 'center' },
-  paletteClose: { width: 34, height: 30, alignItems: 'center', justifyContent: 'center' },
-  highlightSwatchWrap: { width: 38, height: 38, borderRadius: 19, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  highlightSwatch: { width: 28, height: 28, borderRadius: 14 },
   modalKeyboardView: { flex: 1 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(20, 25, 21, 0.42)', justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, paddingBottom: 20, gap: 17, maxHeight: '85%' },
