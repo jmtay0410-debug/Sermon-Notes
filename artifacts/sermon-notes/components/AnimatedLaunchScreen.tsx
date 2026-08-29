@@ -3,6 +3,12 @@ import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
 
 import { BACKGROUND_URI, THORN_URI } from '@/components/launchAssets';
 
+type Particle = {
+  left: `${number}%`;
+  top: `${number}%`;
+  size: number;
+};
+
 export function AnimatedLaunchScreen({ ready, onFinished }: { ready: boolean; onFinished: () => void }) {
   const [minimumTimeDone, setMinimumTimeDone] = useState(false);
   const [exiting, setExiting] = useState(false);
@@ -18,7 +24,7 @@ export function AnimatedLaunchScreen({ ready, onFinished }: { ready: boolean; on
   const captionOpacity = useRef(new Animated.Value(0)).current;
   const particlePhase = useRef(new Animated.Value(0)).current;
 
-  const particles = useMemo(
+  const particles = useMemo<Particle[]>(
     () => [
       { left: '12%', top: '21%', size: 3 },
       { left: '78%', top: '17%', size: 4 },
