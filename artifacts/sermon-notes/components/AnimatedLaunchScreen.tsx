@@ -1,16 +1,28 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Defs, G, Mask, Path, Polygon, Rect } from 'react-native-svg';
 
-import { BACKGROUND_URI, THORN_URI } from '@/components/launchAssets';
+import { BACKGROUND_URI } from '@/components/launchAssets';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const MINIMUM_INTRO_MS = 4000;
-const CIRCLE_RADIUS = 44;
+const CIRCLE_RADIUS = 40.5;
 const CIRCLE_LENGTH = 2 * Math.PI * CIRCLE_RADIUS;
 const REMOTE_BACKGROUND =
   'https://images.unsplash.com/photo-1586488619157-e98211550398?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.1.0&q=60&w=3000';
+
+const VINE_A =
+  'M50 8 C61 7 71 12 79 20 C87 27 92 38 91 49 C92 60 87 71 79 79 C70 87 60 92 49 91 C38 92 28 87 20 79 C12 71 8 60 9 49 C8 38 13 28 21 20 C29 13 39 9 50 8 Z';
+const VINE_B =
+  'M49 12 C59 10 69 14 77 22 C85 30 89 40 88 50 C88 60 84 69 76 77 C68 85 58 89 48 88 C38 88 29 84 22 76 C14 68 10 58 12 48 C11 38 16 29 24 22 C31 15 40 12 49 12 Z';
+const VINE_C =
+  'M47 10 C56 9 64 12 72 17 C81 23 87 31 90 41 C92 51 90 61 84 70 C78 79 69 85 59 89 C49 92 39 90 30 85 C21 80 14 72 11 62 C8 52 10 42 15 33 C20 24 29 17 38 13 C41 12 44 11 47 10 Z';
+
+const THORN_ANGLES = [
+  2, 13, 24, 35, 47, 58, 70, 82, 94, 106, 118, 130, 142, 154, 166, 178, 190, 202, 214, 226,
+  238, 250, 262, 274, 286, 298, 310, 322, 334, 346,
+];
 
 type Spark = {
   left: `${number}%`;
@@ -18,6 +30,59 @@ type Spark = {
   size: number;
   direction: -1 | 1;
 };
+
+function ThornCrownShape({ color, opacity = 1, strokeWidth = 1.65 }: { color: string; opacity?: number; strokeWidth?: number }) {
+  return (
+    <G opacity={opacity}>
+      <G fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round">
+        <Path d={VINE_A} strokeWidth={strokeWidth} />
+        <Path d={VINE_B} strokeWidth={strokeWidth * 0.86} />
+        <Path d={VINE_C} strokeWidth={strokeWidth * 0.62} opacity={0.72} />
+      </G>
+
+      {THORN_ANGLES.map((angle, index) => {
+        const radians = (angle * Math.PI) / 180;
+        const outward = index % 6 !== 2;
+        const baseRadius = index % 2 === 0 ? 38.8 : 40.3;
+        const length = index % 5 === 0 ? 12 : index % 3 === 0 ? 9.5 : 7.2;
+        const lean = ((index % 4) - 1.5) * 0.07;
+        const direction = outward ? 1 : -1;
+        const tipRadius = baseRadius + direction * length;
+        const tipAngle = radians + lean;
+        const baseX = 50 + Math.cos(radians) * baseRadius;
+        const baseY = 50 + Math.sin(radians) * baseRadius;
+        const tipX = 50 + Math.cos(tipAngle) * tipRadius;
+        const tipY = 50 + Math.sin(tipAngle) * tipRadius;
+        const tangentX = -Math.sin(radians);
+        const tangentY = Math.cos(radians);
+        const halfWidth = index % 5 === 0 ? 1.7 : 1.15;
+        const leftX = baseX + tangentX * halfWidth;
+        const leftY = baseY + tangentY * halfWidth;
+        const rightX = baseX - tangentX * halfWidth;
+        const rightY = baseY - tangentY * halfWidth;
+
+        return (
+          <G key={`${angle}-${index}`}>
+            <Polygon
+              points={`${leftX},${leftY} ${tipX},${tipY} ${rightX},${rightY}`}
+              fill={color}
+              opacity={0.98}
+            />
+            {index % 4 === 0 ? (
+              <Path
+                d={`M ${baseX - tangentX * 1.9} ${baseY - tangentY * 1.9} Q ${baseX + Math.cos(radians) * 2.4} ${baseY + Math.sin(radians) * 2.4} ${baseX + tangentX * 2.1} ${baseY + tangentY * 2.1}`}
+                fill="none"
+                stroke={color}
+                strokeWidth={strokeWidth * 0.55}
+                strokeLinecap="round"
+              />
+            ) : null}
+          </G>
+        );
+      })}
+    </G>
+  );
+}
 
 function ThornLoader({ progress, glow }: { progress: Animated.Value; glow: Animated.Value }) {
   const dashOffset = progress.interpolate({
@@ -33,37 +98,31 @@ function ThornLoader({ progress, glow }: { progress: Animated.Value; glow: Anima
     <View style={styles.thornStage}>
       <Animated.View style={[styles.thornGlow, { opacity: glow }]} />
 
-      <Image
-        source={{ uri: THORN_URI }}
-        resizeMode="contain"
-        style={[styles.thornImage, styles.thornBase]}
-      />
-
       <Svg width="100%" height="100%" viewBox="0 0 100 100" style={styles.progressSvg}>
-        <AnimatedCircle
-          cx="50"
-          cy="50"
-          r={CIRCLE_RADIUS}
-          fill="none"
-          stroke="rgba(226, 175, 79, 0.30)"
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeDasharray={`${CIRCLE_LENGTH} ${CIRCLE_LENGTH}`}
-          strokeDashoffset={dashOffset as never}
-          transform="rotate(-90 50 50)"
-        />
-        <AnimatedCircle
-          cx="50"
-          cy="50"
-          r={CIRCLE_RADIUS}
-          fill="none"
-          stroke="#FFF9EA"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          strokeDasharray={`${CIRCLE_LENGTH} ${CIRCLE_LENGTH}`}
-          strokeDashoffset={dashOffset as never}
-          transform="rotate(-90 50 50)"
-        />
+        <Defs>
+          <Mask id="thorn-progress-mask" x="0" y="0" width="100" height="100">
+            <Rect x="0" y="0" width="100" height="100" fill="black" />
+            <AnimatedCircle
+              cx="50"
+              cy="50"
+              r={CIRCLE_RADIUS}
+              fill="none"
+              stroke="white"
+              strokeWidth="28"
+              strokeLinecap="round"
+              strokeDasharray={`${CIRCLE_LENGTH} ${CIRCLE_LENGTH}`}
+              strokeDashoffset={dashOffset as never}
+              transform="rotate(-90 50 50)"
+            />
+          </Mask>
+        </Defs>
+
+        <ThornCrownShape color="rgba(245, 241, 230, 0.24)" opacity={0.92} strokeWidth={1.75} />
+
+        <G mask="url(#thorn-progress-mask)">
+          <ThornCrownShape color="rgba(223, 169, 74, 0.78)" opacity={0.82} strokeWidth={3.2} />
+          <ThornCrownShape color="#FFF9EA" strokeWidth={1.9} />
+        </G>
       </Svg>
 
       <Animated.View style={[styles.progressHeadOrbit, { transform: [{ rotate: headRotation }] }]}>
@@ -347,65 +406,56 @@ const styles = StyleSheet.create({
     paddingTop: '30%',
   },
   loaderWrap: {
-    width: 270,
-    height: 270,
+    width: 278,
+    height: 278,
     alignItems: 'center',
     justifyContent: 'center',
   },
   goldHaze: {
     position: 'absolute',
-    width: 235,
-    height: 235,
-    borderRadius: 118,
+    width: 242,
+    height: 242,
+    borderRadius: 121,
     backgroundColor: 'rgba(224, 174, 84, 0.035)',
     shadowColor: '#E0AE54',
     shadowOpacity: 0.34,
     shadowRadius: 38,
   },
   thornStage: {
-    width: 250,
-    height: 250,
+    width: 258,
+    height: 258,
     alignItems: 'center',
     justifyContent: 'center',
   },
   thornGlow: {
     position: 'absolute',
-    width: 222,
-    height: 222,
-    borderRadius: 111,
-    borderWidth: 2,
-    borderColor: 'rgba(231, 183, 88, 0.64)',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    borderWidth: 1,
+    borderColor: 'rgba(231, 183, 88, 0.34)',
     shadowColor: '#E7B758',
     shadowOpacity: 0.9,
-    shadowRadius: 26,
-  },
-  thornImage: {
-    position: 'absolute',
-    width: 230,
-    height: 230,
-    tintColor: '#FFF9EA',
-  },
-  thornBase: {
-    opacity: 0.92,
+    shadowRadius: 30,
   },
   progressSvg: {
     position: 'absolute',
   },
   progressHeadOrbit: {
     position: 'absolute',
-    width: 220,
-    height: 220,
+    width: 209,
+    height: 209,
     alignItems: 'center',
   },
   progressHead: {
     width: 12,
     height: 12,
-    marginTop: -5,
+    marginTop: -6,
     borderRadius: 6,
     backgroundColor: '#FFF7DF',
     shadowColor: '#E8B257',
     shadowOpacity: 1,
-    shadowRadius: 14,
+    shadowRadius: 15,
   },
   copy: {
     alignItems: 'center',
