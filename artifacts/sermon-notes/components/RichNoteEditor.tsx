@@ -115,57 +115,33 @@ function applyHighlight(editor: HTMLElement, range: Range, color: string) {
   }
 }
 
-function findHighlightAncestor(node: Node, editor: HTMLElement) {
-  let element = node.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : node.parentElement;
-  while (element && element !== editor) {
-    if (element.dataset.sermonHighlight === 'true') return element;
-    element = element.parentElement;
-  }
-  return null;
-}
-
 function removeHighlight(editor: HTMLElement, range: Range) {
-  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
-  const slices: Array<{ node: Text; start: number; end: number }> = [];
-  let current = walker.nextNode();
+  // Highlight removal must never recreate or replace the text itself. Instead,
+  // unwrap any highlight span touched by the swipe and move its existing child
+  // nodes back into the document. This preserves the exact text and any nested
+  // formatting inside it.
+  const marks = Array.from(editor.querySelectorAll<HTMLElement>('[data-sermon-highlight="true"]'))
+    .filter((mark) => {
+      try {
+        return range.intersectsNode(mark);
+      } catch {
+        return false;
+      }
+    })
+    .reverse();
 
-  while (current) {
-    const node = current as Text;
-    const highlight = findHighlightAncestor(node, editor);
-    if (highlight && (node.textContent ?? '').length && range.intersectsNode(node)) {
-      let start = 0;
-      let end = node.length;
-      if (node === range.startContainer) start = range.startOffset;
-      if (node === range.endContainer) end = range.endOffset;
-      if (end > start) slices.push({ node, start, end });
+  for (const mark of marks) {
+    const parent = mark.parentNode;
+    if (!parent) continue;
+
+    while (mark.firstChild) {
+      parent.insertBefore(mark.firstChild, mark);
     }
-    current = walker.nextNode();
+    parent.removeChild(mark);
+    parent.normalize();
   }
 
-  for (let index = slices.length - 1; index >= 0; index -= 1) {
-    const { node, start, end } = slices[index];
-    const mark = findHighlightAncestor(node, editor);
-    if (!mark || !mark.parentNode) continue;
-
-    const text = node.textContent ?? '';
-    const before = text.slice(0, start);
-    const selected = text.slice(start, end);
-    const after = text.slice(end);
-    const fragment = document.createDocumentFragment();
-
-    if (before) {
-      const beforeMark = mark.cloneNode(false) as HTMLElement;
-      beforeMark.textContent = before;
-      fragment.appendChild(beforeMark);
-    }
-    if (selected) fragment.appendChild(document.createTextNode(selected));
-    if (after) {
-      const afterMark = mark.cloneNode(false) as HTMLElement;
-      afterMark.textContent = after;
-      fragment.appendChild(afterMark);
-    }
-    mark.parentNode.replaceChild(fragment, mark);
-  }
+  editor.normalize();
 }
 
 export default function RichNoteEditor(props: Props) {
@@ -348,8 +324,9 @@ export default function RichNoteEditor(props: Props) {
           box-shadow: 0 4px 14px rgba(0,0,0,.16); display: flex; align-items: center; justify-content: center;
           -webkit-tap-highlight-color: transparent;
         }
-        .highlight-launcher { width: 46px; height: 46px; border-radius: 23px; color: ${props.textColor}; font-weight: 800; font-size: 13px; }
+        .highlight-launcher { width: 46px; height: 46px; border-radius: 23px; color: ${props.textColor}; }
         .highlight-launcher.active { border-width: 2px; border-color: rgba(255,255,255,.8); }
+        .highlight-icon { width: 23px; height: 23px; display: block; }
         .highlight-palette { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 7px 4px; border-radius: 20px; background: rgba(30,36,31,.95); border: 1px solid rgba(127,127,127,.25); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
         .highlight-color { width: 36px; height: 36px; border-radius: 18px; padding: 4px; background: transparent; box-shadow: none; }
         .highlight-color.selected { border: 2px solid ${props.textColor}; }
@@ -413,7 +390,10 @@ export default function RichNoteEditor(props: Props) {
           onPointerDown={preventControlFocus}
           onClick={() => setHighlightActive(!highlightUiActive, highlightUiColor)}
         >
-          HL
+          <svg className="highlight-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m9 11-6 6v3h9l3-3" />
+            <path d="m22 12-4.3 4.3a1 1 0 0 1-1.4 0L7.7 7.7a1 1 0 0 1 0-1.4L12 2Z" />
+          </svg>
         </button>
 
         {highlightUiActive ? (
