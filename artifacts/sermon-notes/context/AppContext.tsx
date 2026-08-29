@@ -25,6 +25,7 @@ export type Sermon = {
   date: string;
   mainScripture: string;
   notes: string;
+  notesHtml?: string;
   createdAt: string;
   updatedAt: string;
   completed: boolean;
@@ -60,6 +61,12 @@ type AppContextValue = {
 const STORAGE_KEY = '@sermon-notes/state-v1';
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+const escapeHtml = (value: string) => value
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
 
 const now = new Date();
 const isoToday = now.toISOString().slice(0, 10);
@@ -156,6 +163,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         ...details,
         id: makeId(),
         notes: '',
+        notesHtml: '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         completed: false,
@@ -182,7 +190,17 @@ export function AppProvider({ children }: PropsWithChildren) {
         if (sermon.scriptures.some((item) => item.reference === reference)) return sermon;
         const item: ScriptureReference = { id: makeId(), sermonId, reference, verseText };
         const prefix = sermon.notes.trim().length ? `${sermon.notes.trim()}\n\n` : '';
-        return { ...sermon, notes: `${prefix}${reference}\n${verseText}`, scriptures: [...sermon.scriptures, item], updatedAt: new Date().toISOString() };
+        const existingRich = sermon.notesHtml?.trim()
+          ? sermon.notesHtml
+          : escapeHtml(sermon.notes).replace(/\n/g, '<br>');
+        const richPrefix = existingRich.trim().length ? `${existingRich}<div><br></div>` : '';
+        return {
+          ...sermon,
+          notes: `${prefix}${reference}\n${verseText}`,
+          notesHtml: `${richPrefix}<div>${escapeHtml(reference)}</div><div>${escapeHtml(verseText)}</div>`,
+          scriptures: [...sermon.scriptures, item],
+          updatedAt: new Date().toISOString(),
+        };
       }));
     },
     toggleItem: (sermonId, kind, itemId) => {
