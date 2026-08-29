@@ -1,10 +1,11 @@
 'use dom';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { Ref } from 'react';
 import { useDOMImperativeHandle, type DOMImperativeFactory } from 'expo/dom';
 
 const ERASE_HIGHLIGHT = '__remove_highlight__';
+const HIGHLIGHT_COLORS = ['#F6E27A', '#BFE3C0', '#B8DDF6', '#F4BDD0', '#F4C37D'];
 
 export interface RichNoteEditorRef extends DOMImperativeFactory {
   focus: (...args: any[]) => void;
@@ -102,7 +103,6 @@ function applyHighlight(editor: HTMLElement, range: Range, color: string) {
   for (let index = slices.length - 1; index >= 0; index -= 1) {
     const { node, start, end } = slices[index];
     if (!node.parentNode) continue;
-
     if (end < node.length) node.splitText(end);
     const selected = start > 0 ? node.splitText(start) : node;
     const mark = document.createElement('span');
@@ -158,15 +158,12 @@ function removeHighlight(editor: HTMLElement, range: Range) {
       beforeMark.textContent = before;
       fragment.appendChild(beforeMark);
     }
-
     if (selected) fragment.appendChild(document.createTextNode(selected));
-
     if (after) {
       const afterMark = mark.cloneNode(false) as HTMLElement;
       afterMark.textContent = after;
       fragment.appendChild(afterMark);
     }
-
     mark.parentNode.replaceChild(fragment, mark);
   }
 }
@@ -176,8 +173,10 @@ export default function RichNoteEditor(props: Props) {
   const savedRangeRef = useRef<Range | null>(null);
   const dragStartRef = useRef<CaretPoint | null>(null);
   const highlightModeRef = useRef(false);
-  const highlightColorRef = useRef('#F6E27A');
+  const highlightColorRef = useRef(HIGHLIGHT_COLORS[0]);
   const saveTimerRef = useRef<number | null>(null);
+  const [highlightUiActive, setHighlightUiActive] = useState(false);
+  const [highlightUiColor, setHighlightUiColor] = useState(HIGHLIGHT_COLORS[0]);
 
   const emitChange = () => {
     const editor = editorRef.current;
@@ -225,8 +224,25 @@ export default function RichNoteEditor(props: Props) {
 
   const syncHighlightAppearance = (editor: HTMLElement, color: string) => {
     const erasing = color === ERASE_HIGHLIGHT;
+    editor.classList.toggle('highlighting', highlightModeRef.current);
     editor.classList.toggle('erasing', highlightModeRef.current && erasing);
     editor.style.setProperty('--highlight-color', erasing ? 'rgba(120, 120, 120, 0.24)' : color);
+  };
+
+  const setHighlightActive = (enabled: boolean, color = highlightColorRef.current) => {
+    highlightModeRef.current = enabled;
+    highlightColorRef.current = color;
+    setHighlightUiActive(enabled);
+    setHighlightUiColor(color);
+    const editor = editorRef.current;
+    if (editor) syncHighlightAppearance(editor, color);
+  };
+
+  const setHighlightChoice = (color: string) => {
+    highlightColorRef.current = color;
+    setHighlightUiColor(color);
+    const editor = editorRef.current;
+    if (editor) syncHighlightAppearance(editor, color);
   };
 
   useDOMImperativeHandle(
@@ -249,18 +265,11 @@ export default function RichNoteEditor(props: Props) {
       setHighlightMode: (...args: any[]) => {
         const enabled = Boolean(args[0]);
         const color = typeof args[1] === 'string' ? args[1] : highlightColorRef.current;
-        highlightModeRef.current = enabled;
-        highlightColorRef.current = color;
-        const editor = editorRef.current;
-        if (!editor) return;
-        editor.classList.toggle('highlighting', enabled);
-        syncHighlightAppearance(editor, color);
+        setHighlightActive(enabled, color);
       },
       setHighlightColor: (...args: any[]) => {
         const color = typeof args[0] === 'string' ? args[0] : highlightColorRef.current;
-        highlightColorRef.current = color;
-        const editor = editorRef.current;
-        if (editor) syncHighlightAppearance(editor, color);
+        setHighlightChoice(color);
       },
     }),
     []
@@ -296,44 +305,35 @@ export default function RichNoteEditor(props: Props) {
     if (!editor || !dragStartRef.current) return;
     const range = point ? updatePreviewSelection(point) : null;
     if (range && !range.collapsed) {
-      if (highlightColorRef.current === ERASE_HIGHLIGHT) {
-        removeHighlight(editor, range);
-      } else {
-        applyHighlight(editor, range, highlightColorRef.current);
-      }
+      if (highlightColorRef.current === ERASE_HIGHLIGHT) removeHighlight(editor, range);
+      else applyHighlight(editor, range, highlightColorRef.current);
       emitChange();
     }
     window.getSelection()?.removeAllRanges();
     dragStartRef.current = null;
   };
 
+  const preventControlFocus = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   return (
-    <>
+    <div className="editor-shell">
       <style>{`
         html, body, #root { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
         * { box-sizing: border-box; }
+        button { font: inherit; }
+        .editor-shell { position: relative; width: 100%; height: 100%; overflow: hidden; }
         .sermon-rich-editor {
           --highlight-color: #F6E27A;
-          width: 100%;
-          height: 100%;
-          min-height: 100%;
-          overflow-y: auto;
-          outline: none;
-          padding: 8px 2px 28px;
-          color: ${props.textColor};
-          background: transparent;
+          width: 100%; height: 100%; min-height: 100%; overflow-y: auto; outline: none;
+          padding: 8px 54px 28px 2px; color: ${props.textColor}; background: transparent;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          font-size: 18px;
-          line-height: 29px;
-          white-space: pre-wrap;
-          overflow-wrap: anywhere;
+          font-size: 18px; line-height: 29px; white-space: pre-wrap; overflow-wrap: anywhere;
           -webkit-overflow-scrolling: touch;
         }
-        .sermon-rich-editor:empty::before {
-          content: attr(data-placeholder);
-          color: ${props.placeholderColor};
-          pointer-events: none;
-        }
+        .sermon-rich-editor:empty::before { content: attr(data-placeholder); color: ${props.placeholderColor}; pointer-events: none; }
         .sermon-rich-editor h2 { margin: 12px 0 6px; font-size: 24px; line-height: 31px; font-weight: 750; }
         .sermon-rich-editor blockquote { margin: 9px 0; padding-left: 12px; border-left: 3px solid ${props.placeholderColor}; opacity: 0.95; }
         .sermon-rich-editor ul { margin: 6px 0; padding-left: 26px; }
@@ -342,7 +342,24 @@ export default function RichNoteEditor(props: Props) {
         .sermon-rich-editor.highlighting *::selection { background: var(--highlight-color); color: inherit; }
         .sermon-rich-editor.highlighting.erasing::selection,
         .sermon-rich-editor.highlighting.erasing *::selection { background: rgba(120, 120, 120, 0.24); color: inherit; }
+        .highlight-dock { position: absolute; right: 5px; top: 38%; z-index: 50; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .highlight-launcher, .highlight-color, .highlight-close {
+          appearance: none; border: 1px solid rgba(127,127,127,.26); background: rgba(30,36,31,.94);
+          box-shadow: 0 4px 14px rgba(0,0,0,.16); display: flex; align-items: center; justify-content: center;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .highlight-launcher { width: 46px; height: 46px; border-radius: 23px; color: ${props.textColor}; font-weight: 800; font-size: 13px; }
+        .highlight-launcher.active { border-width: 2px; border-color: rgba(255,255,255,.8); }
+        .highlight-palette { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 7px 4px; border-radius: 20px; background: rgba(30,36,31,.95); border: 1px solid rgba(127,127,127,.25); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+        .highlight-color { width: 36px; height: 36px; border-radius: 18px; padding: 4px; background: transparent; box-shadow: none; }
+        .highlight-color.selected { border: 2px solid ${props.textColor}; }
+        .highlight-dot { width: 26px; height: 26px; border-radius: 13px; }
+        .erase-dot { width: 26px; height: 26px; border-radius: 13px; background: rgba(255,255,255,.08); border: 1px solid rgba(127,127,127,.35); position: relative; }
+        .erase-dot::after { content: ''; position: absolute; width: 20px; height: 2px; background: ${props.placeholderColor}; transform: rotate(-45deg); left: 2px; top: 11px; border-radius: 2px; }
+        .highlight-close { width: 32px; height: 28px; border-radius: 12px; color: ${props.placeholderColor}; box-shadow: none; background: transparent; }
+        .highlight-tip { max-width: 112px; padding: 6px 8px; border-radius: 10px; background: rgba(30,36,31,.94); border: 1px solid rgba(127,127,127,.2); color: ${props.placeholderColor}; font-size: 10px; line-height: 13px; text-align: center; }
       `}</style>
+
       <div
         ref={editorRef}
         className="sermon-rich-editor"
@@ -386,6 +403,49 @@ export default function RichNoteEditor(props: Props) {
         }}
         onPointerCancel={() => finishHighlight(null)}
       />
-    </>
+
+      <div className="highlight-dock">
+        <button
+          type="button"
+          aria-label={highlightUiActive ? 'Exit highlight mode' : 'Start highlight mode'}
+          className={`highlight-launcher${highlightUiActive ? ' active' : ''}`}
+          style={{ background: highlightUiActive && highlightUiColor !== ERASE_HIGHLIGHT ? highlightUiColor : 'rgba(30,36,31,.94)' }}
+          onPointerDown={preventControlFocus}
+          onClick={() => setHighlightActive(!highlightUiActive, highlightUiColor)}
+        >
+          HL
+        </button>
+
+        {highlightUiActive ? (
+          <>
+            <div className="highlight-palette">
+              {HIGHLIGHT_COLORS.map((color) => (
+                <button
+                  type="button"
+                  key={color}
+                  aria-label={`Highlight color ${color}`}
+                  className={`highlight-color${highlightUiColor === color ? ' selected' : ''}`}
+                  onPointerDown={preventControlFocus}
+                  onClick={() => setHighlightChoice(color)}
+                >
+                  <span className="highlight-dot" style={{ background: color }} />
+                </button>
+              ))}
+              <button
+                type="button"
+                aria-label="Remove highlight"
+                className={`highlight-color${highlightUiColor === ERASE_HIGHLIGHT ? ' selected' : ''}`}
+                onPointerDown={preventControlFocus}
+                onClick={() => setHighlightChoice(ERASE_HIGHLIGHT)}
+              >
+                <span className="erase-dot" />
+              </button>
+              <button type="button" aria-label="Close highlight mode" className="highlight-close" onPointerDown={preventControlFocus} onClick={() => setHighlightActive(false, highlightUiColor)}>×</button>
+            </div>
+            <div className="highlight-tip">{highlightUiColor === ERASE_HIGHLIGHT ? 'Swipe highlighted words to erase' : 'Swipe words to highlight'}</div>
+          </>
+        ) : null}
+      </div>
+    </div>
   );
 }
