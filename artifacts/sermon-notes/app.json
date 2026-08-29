@@ -4,12 +4,12 @@
     "slug": "sermon-notes",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/context-icon.generated.png",
+    "icon": "./assets/images/icon.png",
     "scheme": "sermon-notes",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/context-icon.generated.png",
+      "image": "./assets/images/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#11120D"
     },
@@ -18,7 +18,7 @@
     },
     "android": {},
     "web": {
-      "favicon": "./assets/images/context-icon.generated.png"
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
       [
