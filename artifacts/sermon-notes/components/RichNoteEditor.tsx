@@ -1,6 +1,7 @@
 'use dom';
 
-import React, { Ref, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
+import type { Ref } from 'react';
 import { useDOMImperativeHandle, type DOMImperativeFactory } from 'expo/dom';
 
 export interface RichNoteEditorRef extends DOMImperativeFactory {
@@ -106,8 +107,6 @@ function applyHighlight(editor: HTMLElement, range: Range, color: string) {
     mark.dataset.sermonHighlight = 'true';
     mark.style.backgroundColor = color;
     mark.style.borderRadius = '0.18em';
-    mark.style.boxDecorationBreak = 'clone';
-    mark.style.webkitBoxDecorationBreak = 'clone';
     mark.style.padding = '0 0.035em';
     selected.parentNode?.insertBefore(mark, selected);
     mark.appendChild(selected);
