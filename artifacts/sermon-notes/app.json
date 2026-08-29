@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Context",
+    "name": "Sermon Notes",
     "slug": "sermon-notes",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#11120D"
+      "backgroundColor": "#F8F7F2"
     },
     "ios": {
       "supportsTablet": false
