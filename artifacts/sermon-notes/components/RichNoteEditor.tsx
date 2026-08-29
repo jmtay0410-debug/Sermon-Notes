@@ -4,6 +4,8 @@ import React, { useEffect, useRef } from 'react';
 import type { Ref } from 'react';
 import { useDOMImperativeHandle, type DOMImperativeFactory } from 'expo/dom';
 
+const ERASE_HIGHLIGHT = '__remove_highlight__';
+
 export interface RichNoteEditorRef extends DOMImperativeFactory {
   focus: (...args: any[]) => void;
   bold: (...args: any[]) => void;
@@ -113,6 +115,62 @@ function applyHighlight(editor: HTMLElement, range: Range, color: string) {
   }
 }
 
+function findHighlightAncestor(node: Node, editor: HTMLElement) {
+  let element = node.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : node.parentElement;
+  while (element && element !== editor) {
+    if (element.dataset.sermonHighlight === 'true') return element;
+    element = element.parentElement;
+  }
+  return null;
+}
+
+function removeHighlight(editor: HTMLElement, range: Range) {
+  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+  const slices: Array<{ node: Text; start: number; end: number }> = [];
+  let current = walker.nextNode();
+
+  while (current) {
+    const node = current as Text;
+    const highlight = findHighlightAncestor(node, editor);
+    if (highlight && (node.textContent ?? '').length && range.intersectsNode(node)) {
+      let start = 0;
+      let end = node.length;
+      if (node === range.startContainer) start = range.startOffset;
+      if (node === range.endContainer) end = range.endOffset;
+      if (end > start) slices.push({ node, start, end });
+    }
+    current = walker.nextNode();
+  }
+
+  for (let index = slices.length - 1; index >= 0; index -= 1) {
+    const { node, start, end } = slices[index];
+    const mark = findHighlightAncestor(node, editor);
+    if (!mark || !mark.parentNode) continue;
+
+    const text = node.textContent ?? '';
+    const before = text.slice(0, start);
+    const selected = text.slice(start, end);
+    const after = text.slice(end);
+    const fragment = document.createDocumentFragment();
+
+    if (before) {
+      const beforeMark = mark.cloneNode(false) as HTMLElement;
+      beforeMark.textContent = before;
+      fragment.appendChild(beforeMark);
+    }
+
+    if (selected) fragment.appendChild(document.createTextNode(selected));
+
+    if (after) {
+      const afterMark = mark.cloneNode(false) as HTMLElement;
+      afterMark.textContent = after;
+      fragment.appendChild(afterMark);
+    }
+
+    mark.parentNode.replaceChild(fragment, mark);
+  }
+}
+
 export default function RichNoteEditor(props: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
@@ -165,6 +223,12 @@ export default function RichNoteEditor(props: Props) {
     emitChange();
   };
 
+  const syncHighlightAppearance = (editor: HTMLElement, color: string) => {
+    const erasing = color === ERASE_HIGHLIGHT;
+    editor.classList.toggle('erasing', highlightModeRef.current && erasing);
+    editor.style.setProperty('--highlight-color', erasing ? 'rgba(120, 120, 120, 0.24)' : color);
+  };
+
   useDOMImperativeHandle(
     props.ref as never,
     (): RichNoteEditorRef => ({
@@ -190,13 +254,13 @@ export default function RichNoteEditor(props: Props) {
         const editor = editorRef.current;
         if (!editor) return;
         editor.classList.toggle('highlighting', enabled);
-        editor.style.setProperty('--highlight-color', color);
-        if (enabled) editor.blur();
+        syncHighlightAppearance(editor, color);
       },
       setHighlightColor: (...args: any[]) => {
         const color = typeof args[0] === 'string' ? args[0] : highlightColorRef.current;
         highlightColorRef.current = color;
-        editorRef.current?.style.setProperty('--highlight-color', color);
+        const editor = editorRef.current;
+        if (editor) syncHighlightAppearance(editor, color);
       },
     }),
     []
@@ -232,7 +296,11 @@ export default function RichNoteEditor(props: Props) {
     if (!editor || !dragStartRef.current) return;
     const range = point ? updatePreviewSelection(point) : null;
     if (range && !range.collapsed) {
-      applyHighlight(editor, range, highlightColorRef.current);
+      if (highlightColorRef.current === ERASE_HIGHLIGHT) {
+        removeHighlight(editor, range);
+      } else {
+        applyHighlight(editor, range, highlightColorRef.current);
+      }
       emitChange();
     }
     window.getSelection()?.removeAllRanges();
@@ -272,6 +340,8 @@ export default function RichNoteEditor(props: Props) {
         .sermon-rich-editor.highlighting { cursor: crosshair; touch-action: none; }
         .sermon-rich-editor.highlighting::selection,
         .sermon-rich-editor.highlighting *::selection { background: var(--highlight-color); color: inherit; }
+        .sermon-rich-editor.highlighting.erasing::selection,
+        .sermon-rich-editor.highlighting.erasing *::selection { background: rgba(120, 120, 120, 0.24); color: inherit; }
       `}</style>
       <div
         ref={editorRef}
@@ -295,7 +365,6 @@ export default function RichNoteEditor(props: Props) {
         onPointerDown={(event) => {
           if (!highlightModeRef.current) return;
           event.preventDefault();
-          editorRef.current?.blur();
           const point = caretPointFromCoordinates(event.clientX, event.clientY);
           if (!point || !editorRef.current?.contains(point.node)) return;
           dragStartRef.current = point;
