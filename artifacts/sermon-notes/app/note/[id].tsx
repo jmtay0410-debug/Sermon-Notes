@@ -13,7 +13,6 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { useApp, formatDate } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { IconButton, PrimaryButton, Screen, Tag } from '@/components/AppUI';
@@ -31,7 +30,7 @@ const escapeHtml = (value: string) => value
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
   .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
+  .replace(/\"/g, '&quot;')
   .replace(/'/g, '&#039;');
 
 const plainTextToHtml = (value: string) => escapeHtml(value).replace(/\n/g, '<br>');
@@ -268,25 +267,6 @@ export default function NoteScreen() {
             <Feather name="arrow-up-right" size={14} color={colors.accentForeground} />
           </Pressable>
         ) : null}
-
-        <KeyboardStickyView offset={{ closed: 0, opened: 0 }} style={styles.keyboardDock}>
-          <Pressable
-            testID="Dismiss keyboard"
-            accessibilityLabel="Dismiss keyboard"
-            onPress={Keyboard.dismiss}
-            style={({ pressed }) => [
-              styles.keyboardButton,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                opacity: pressed ? 0.6 : 1,
-              },
-            ]}
-          >
-            <Feather name="chevron-down" size={17} color={colors.primary} />
-            <Text style={[styles.keyboardText, { color: colors.foreground }]}>Done</Text>
-          </Pressable>
-        </KeyboardStickyView>
       </View>
 
       <Modal transparent animationType="slide" visible={!!category} onRequestClose={closeCategory} statusBarTranslucent>
@@ -426,9 +406,6 @@ const styles = StyleSheet.create({
   editorArea: { flex: 1, minHeight: 180, overflow: 'hidden' },
   referencePill: { alignSelf: 'flex-start', borderRadius: 11, paddingHorizontal: 11, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
   referencePillText: { fontSize: 13, fontWeight: '700' },
-  keyboardDock: { marginBottom: 0, alignItems: 'flex-start' },
-  keyboardButton: { height: 38, borderWidth: 1, borderRadius: 12, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  keyboardText: { fontSize: 12, fontWeight: '700' },
   modalKeyboardView: { flex: 1 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(20, 25, 21, 0.42)', justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, paddingBottom: 20, gap: 17, maxHeight: '85%' },
