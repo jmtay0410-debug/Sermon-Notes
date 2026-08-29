@@ -259,11 +259,6 @@ export default function NoteScreen() {
               </View>
             ) : null}
           </View>
-
-          <Pressable onPress={() => openCategory(categories[3])} style={[styles.addMoment, { borderColor: colors.border }]}>
-            <Feather name="plus" size={15} color={colors.primary} />
-            <Text style={[styles.addMomentText, { color: colors.primary }]}>Add a moment</Text>
-          </Pressable>
         </Animated.View>
       </View>
 
@@ -385,7 +380,7 @@ const styles = StyleSheet.create({
   editor: { flex: 1, paddingHorizontal: 1, paddingVertical: 8, fontSize: 18, lineHeight: 29 },
   referencePill: { alignSelf: 'flex-start', borderRadius: 11, paddingHorizontal: 11, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
   referencePillText: { fontSize: 13, fontWeight: '700' },
-  keyboardDock: { gap: 8 },
+  keyboardDock: { marginBottom: 0 },
   toolbar: { borderWidth: 1, borderRadius: 14, padding: 8, gap: 9 },
   toolbarRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   keyboardButton: { height: 35, borderRadius: 9, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -397,8 +392,6 @@ const styles = StyleSheet.create({
   quickActionText: { fontSize: 10, fontWeight: '700' },
   toolbarExpanded: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   toolButton: { width: 36, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  addMoment: { alignSelf: 'center', minHeight: 35, borderWidth: 1, borderRadius: 11, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  addMomentText: { fontSize: 12, fontWeight: '700' },
   modalKeyboardView: { flex: 1 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(20, 25, 21, 0.42)', justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, paddingBottom: 20, gap: 17, maxHeight: '85%' },
