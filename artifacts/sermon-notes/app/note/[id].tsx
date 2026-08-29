@@ -17,6 +17,7 @@ import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { useApp, formatDate } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { IconButton, PrimaryButton, Screen, Tag } from '@/components/AppUI';
+import RichNoteEditor, { type RichNoteEditorRef } from '@/components/RichNoteEditor';
 
 const categories = [
   { kind: 'keyPoints' as const, label: 'Key point', icon: 'star' as const, description: 'An important statement from the sermon.' },
@@ -26,19 +27,34 @@ const categories = [
   { kind: 'reminders' as const, label: 'Remember', icon: 'bookmark' as const, description: 'A thought you want to keep close.' },
 ];
 
+const highlightColors = ['#F6E27A', '#BFE3C0', '#B8DDF6', '#F4BDD0', '#F4C37D'];
+
+const escapeHtml = (value: string) => value
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
+const plainTextToHtml = (value: string) => escapeHtml(value).replace(/\n/g, '<br>');
+
 export default function NoteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const { sermons, updateSermon, addTaggedItem, setActiveSermonId } = useApp();
   const sermon = sermons.find((item) => item.id === id);
 
+  const editorRef = React.useRef<RichNoteEditorRef>(null);
+  const initialHtmlRef = React.useRef<{ sermonId: string; html: string } | null>(null);
+  const [editorSize, setEditorSize] = useState({ width: 1, height: 180 });
   const [category, setCategory] = useState<typeof categories[number] | null>(null);
   const [categoryText, setCategoryText] = useState('');
-  const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [toolbarOpen, setToolbarOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [biblePreview, setBiblePreview] = useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [highlightMode, setHighlightMode] = useState(false);
+  const [highlightColor, setHighlightColor] = useState(highlightColors[0]);
 
   React.useEffect(() => {
     setActiveSermonId(id ?? null);
@@ -67,13 +83,39 @@ export default function NoteScreen() {
     );
   }
 
+  if (initialHtmlRef.current?.sermonId !== sermon.id) {
+    initialHtmlRef.current = {
+      sermonId: sermon.id,
+      html: sermon.notesHtml?.trim().length ? sermon.notesHtml : plainTextToHtml(sermon.notes),
+    };
+  }
+
+  const disableHighlightMode = () => {
+    if (!highlightMode) return;
+    setHighlightMode(false);
+    editorRef.current?.setHighlightMode(false, highlightColor);
+  };
+
+  const toggleHighlightMode = () => {
+    const next = !highlightMode;
+    setHighlightMode(next);
+    if (next) Keyboard.dismiss();
+    editorRef.current?.setHighlightMode(next, highlightColor);
+    Haptics.selectionAsync();
+  };
+
+  const chooseHighlightColor = (color: string) => {
+    setHighlightColor(color);
+    editorRef.current?.setHighlightColor(color);
+    Haptics.selectionAsync();
+  };
+
   const insertText = (value: string) => {
-    const before = sermon.notes.slice(0, selection.start);
-    const after = sermon.notes.slice(selection.end);
-    updateSermon(sermon.id, { notes: `${before}${value}${after}` });
+    editorRef.current?.insertText(value);
   };
 
   const openCategory = (item: typeof categories[number]) => {
+    disableHighlightMode();
     Keyboard.dismiss();
     setCategoryText('');
     setCategory(item);
@@ -119,6 +161,7 @@ export default function NoteScreen() {
             testID="Finish sermon"
             hitSlop={8}
             onPress={() => {
+              disableHighlightMode();
               Keyboard.dismiss();
               updateSermon(sermon.id, { completed: true });
               router.replace(`/summary/${sermon.id}`);
@@ -127,6 +170,40 @@ export default function NoteScreen() {
           >
             <Text style={[styles.finishText, { color: colors.primary }]}>Finish</Text>
           </Pressable>
+        </View>
+
+        <View style={styles.formatArea}>
+          <Pressable
+            accessibilityLabel="Formatting tools"
+            onPress={() => setToolbarOpen((open) => !open)}
+            style={({ pressed }) => [
+              styles.topFormatButton,
+              {
+                backgroundColor: colors.secondary,
+                borderColor: colors.border,
+                opacity: pressed ? 0.65 : 1,
+              },
+            ]}
+          >
+            <Feather name={toolbarOpen ? 'chevron-up' : 'sliders'} size={16} color={colors.primary} />
+            <Text style={[styles.topFormatText, { color: colors.secondaryForeground }]}>Formatting</Text>
+          </Pressable>
+
+          {toolbarOpen ? (
+            <View style={[styles.topFormatPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <FormatTool icon="bold" label="Bold" onPress={() => editorRef.current?.bold()} />
+              <FormatTool icon="italic" label="Italic" onPress={() => editorRef.current?.italic()} />
+              <FormatTool icon="underline" label="Underline" onPress={() => editorRef.current?.underline()} />
+              <FormatTool icon="list" label="Bullets" onPress={() => editorRef.current?.bullets()} />
+              <FormatTool icon="type" label="Heading" onPress={() => editorRef.current?.heading()} />
+              <FormatTool icon="message-square" label="Quote" onPress={() => editorRef.current?.quote()} />
+              <FormatTool icon="edit-3" label="Highlight" active={highlightMode} onPress={toggleHighlightMode} />
+            </View>
+          ) : null}
+
+          {highlightMode ? (
+            <Text style={[styles.highlightHint, { color: colors.mutedForeground }]}>Swipe across words to highlight · tap Highlight again to exit</Text>
+          ) : null}
         </View>
 
         <Pressable
@@ -147,25 +224,38 @@ export default function NoteScreen() {
           </View>
         ) : null}
 
-        <View style={[styles.editorArea, { backgroundColor: colors.background }]}>
-          <TextInput
-            testID="Sermon note editor"
-            multiline
-            autoFocus
-            value={sermon.notes}
-            onChangeText={(notes) => updateSermon(sermon.id, { notes })}
-            onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
-            placeholder="Start writing what stands out…"
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.editor, { color: colors.foreground }]}
-            textAlignVertical="top"
-            scrollEnabled
+        <View
+          style={[styles.editorArea, { backgroundColor: colors.background }]}
+          onLayout={(event) => {
+            const { width, height } = event.nativeEvent.layout;
+            if (width > 0 && height > 0 && (width !== editorSize.width || height !== editorSize.height)) {
+              setEditorSize({ width, height });
+            }
+          }}
+        >
+          <RichNoteEditor
+            ref={editorRef}
+            sermonKey={sermon.id}
+            initialHtml={initialHtmlRef.current.html}
+            textColor={colors.foreground}
+            placeholderColor={colors.mutedForeground}
+            onContentChange={async (html, text) => {
+              updateSermon(sermon.id, { notes: text, notesHtml: html });
+            }}
+            dom={{
+              style: { width: editorSize.width, height: editorSize.height, backgroundColor: 'transparent' },
+              containerStyle: { width: editorSize.width, height: editorSize.height, backgroundColor: 'transparent' },
+              scrollEnabled: true,
+              bounces: false,
+              showsVerticalScrollIndicator: false,
+            }}
           />
         </View>
 
         {reference ? (
           <Pressable
             onPress={() => {
+              disableHighlightMode();
               Keyboard.dismiss();
               setBiblePreview(reference);
             }}
@@ -193,17 +283,6 @@ export default function NoteScreen() {
                 <Text style={[styles.keyboardText, { color: colors.secondaryForeground }]}>Done</Text>
               </Pressable>
 
-              <Pressable
-                accessibilityLabel="Formatting tools"
-                onPress={() => setToolbarOpen((open) => !open)}
-                style={({ pressed }) => [styles.formatButton, { opacity: pressed ? 0.6 : 1 }]}
-              >
-                <Feather name={toolbarOpen ? 'chevron-down' : 'sliders'} size={18} color={colors.primary} />
-                <Text style={[styles.toolbarLabel, { color: colors.primary }]}>
-                  {toolbarOpen ? 'Hide tools' : 'Format'}
-                </Text>
-              </Pressable>
-
               <View style={styles.quickActions}>
                 {categories.filter((item) => item.kind !== 'scriptures').slice(0, 3).map((item) => (
                   <Pressable
@@ -220,19 +299,29 @@ export default function NoteScreen() {
                 ))}
               </View>
             </View>
-
-            {toolbarOpen ? (
-              <View style={styles.toolbarExpanded}>
-                <ToolbarButton icon="bold" label="Bold" onPress={() => insertText('**bold**')} />
-                <ToolbarButton icon="italic" label="Italic" onPress={() => insertText('_italic_')} />
-                <ToolbarButton icon="list" label="Bullets" onPress={() => insertText('\n• ')} />
-                <ToolbarButton icon="hash" label="Heading" onPress={() => insertText('\n## ')} />
-                <ToolbarButton icon="message-circle" label="Quote" onPress={() => insertText('\n“ “')} />
-                <ToolbarButton icon="edit-3" label="Highlight" onPress={() => insertText(' ==highlight==')} />
-              </View>
-            ) : null}
           </View>
         </KeyboardStickyView>
+
+        {highlightMode ? (
+          <View style={[styles.highlightPalette, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Pressable accessibilityLabel="Close highlight mode" onPress={toggleHighlightMode} style={styles.paletteClose}>
+              <Feather name="x" size={16} color={colors.mutedForeground} />
+            </Pressable>
+            {highlightColors.map((color) => (
+              <Pressable
+                key={color}
+                accessibilityLabel={`Choose highlight color ${color}`}
+                onPress={() => chooseHighlightColor(color)}
+                style={[
+                  styles.highlightSwatchWrap,
+                  { borderColor: color === highlightColor ? colors.foreground : 'transparent' },
+                ]}
+              >
+                <View style={[styles.highlightSwatch, { backgroundColor: color }]} />
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </View>
 
       <Modal transparent animationType="slide" visible={!!category} onRequestClose={closeCategory} statusBarTranslucent>
@@ -319,52 +408,71 @@ export default function NoteScreen() {
   );
 }
 
-function ToolbarButton({ icon, label, onPress }: { icon: keyof typeof Feather.glyphMap; label: string; onPress: () => void }) {
+function FormatTool({
+  icon,
+  label,
+  onPress,
+  active = false,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  onPress: () => void;
+  active?: boolean;
+}) {
   const colors = useColors();
   return (
     <Pressable
       accessibilityLabel={label}
       onPress={onPress}
       style={({ pressed }) => [
-        styles.toolButton,
-        { backgroundColor: colors.secondary, opacity: pressed ? 0.65 : 1 },
+        styles.formatTool,
+        {
+          backgroundColor: active ? colors.accent : colors.secondary,
+          borderColor: active ? colors.primary : 'transparent',
+          opacity: pressed ? 0.65 : 1,
+        },
       ]}
     >
-      <Feather name={icon} size={16} color={colors.secondaryForeground} />
+      <Feather name={icon} size={17} color={active ? colors.accentForeground : colors.secondaryForeground} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, gap: 0 },
-  noteLayout: { flex: 1, gap: 8 },
+  noteLayout: { flex: 1, gap: 8, position: 'relative' },
   noteHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   noteHeading: { flex: 1, gap: 3, minWidth: 0 },
   noteTitle: { fontSize: 17, fontWeight: '700' },
   noteMeta: { fontSize: 11 },
   finishButton: { paddingVertical: 9, paddingLeft: 5 },
   finishText: { fontSize: 14, fontWeight: '700' },
+  formatArea: { gap: 6 },
+  topFormatButton: { alignSelf: 'flex-start', minHeight: 34, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  topFormatText: { fontSize: 12, fontWeight: '700' },
+  topFormatPanel: { borderWidth: 1, borderRadius: 13, padding: 7, flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'flex-start' },
+  formatTool: { width: 37, height: 37, borderRadius: 9, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  highlightHint: { fontSize: 10, fontWeight: '600', paddingLeft: 2 },
   detailToggle: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 2 },
   saveDot: { width: 6, height: 6, borderRadius: 3 },
   detailToggleText: { fontSize: 11, fontWeight: '600' },
   detailRow: { minHeight: 38, borderWidth: 1, borderRadius: 11, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 8 },
   detailText: { flex: 1, fontSize: 11 },
-  editorArea: { flex: 1, minHeight: 180 },
-  editor: { flex: 1, paddingHorizontal: 1, paddingVertical: 8, fontSize: 18, lineHeight: 29 },
+  editorArea: { flex: 1, minHeight: 180, overflow: 'hidden' },
   referencePill: { alignSelf: 'flex-start', borderRadius: 11, paddingHorizontal: 11, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
   referencePillText: { fontSize: 13, fontWeight: '700' },
   keyboardDock: { marginBottom: 0 },
-  toolbar: { borderWidth: 1, borderRadius: 14, padding: 8, gap: 9 },
+  toolbar: { borderWidth: 1, borderRadius: 14, padding: 8 },
   toolbarRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   keyboardButton: { height: 35, borderRadius: 9, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 4 },
   keyboardText: { fontSize: 12, fontWeight: '700' },
-  formatButton: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 2 },
-  toolbarLabel: { fontSize: 12, fontWeight: '700' },
   quickActions: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end', gap: 5 },
   quickAction: { paddingHorizontal: 7, paddingVertical: 7, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
   quickActionText: { fontSize: 10, fontWeight: '700' },
-  toolbarExpanded: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  toolButton: { width: 36, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  highlightPalette: { position: 'absolute', right: 2, top: 150, zIndex: 30, elevation: 8, borderWidth: 1, borderRadius: 18, paddingVertical: 7, paddingHorizontal: 5, gap: 5, alignItems: 'center' },
+  paletteClose: { width: 34, height: 30, alignItems: 'center', justifyContent: 'center' },
+  highlightSwatchWrap: { width: 38, height: 38, borderRadius: 19, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  highlightSwatch: { width: 28, height: 28, borderRadius: 14 },
   modalKeyboardView: { flex: 1 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(20, 25, 21, 0.42)', justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, paddingBottom: 20, gap: 17, maxHeight: '85%' },
