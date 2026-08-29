@@ -21,6 +21,15 @@ export interface RichNoteEditorRef extends DOMImperativeFactory {
 }
 
 type CaretPoint = { node: Node; offset: number };
+type DockPosition = { x: number; y: number };
+type DockDrag = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  baseX: number;
+  baseY: number;
+  moved: boolean;
+};
 
 type Props = {
   ref: Ref<RichNoteEditorRef>;
@@ -116,10 +125,6 @@ function applyHighlight(editor: HTMLElement, range: Range, color: string) {
 }
 
 function removeHighlight(editor: HTMLElement, range: Range) {
-  // Highlight removal must never recreate or replace the text itself. Instead,
-  // unwrap any highlight span touched by the swipe and move its existing child
-  // nodes back into the document. This preserves the exact text and any nested
-  // formatting inside it.
   const marks = Array.from(editor.querySelectorAll<HTMLElement>('[data-sermon-highlight="true"]'))
     .filter((mark) => {
       try {
@@ -145,14 +150,18 @@ function removeHighlight(editor: HTMLElement, range: Range) {
 }
 
 export default function RichNoteEditor(props: Props) {
+  const shellRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
   const dragStartRef = useRef<CaretPoint | null>(null);
+  const dockDragRef = useRef<DockDrag | null>(null);
   const highlightModeRef = useRef(false);
   const highlightColorRef = useRef(HIGHLIGHT_COLORS[0]);
   const saveTimerRef = useRef<number | null>(null);
   const [highlightUiActive, setHighlightUiActive] = useState(false);
   const [highlightUiColor, setHighlightUiColor] = useState(HIGHLIGHT_COLORS[0]);
+  const [dockPosition, setDockPosition] = useState<DockPosition | null>(null);
 
   const emitChange = () => {
     const editor = editorRef.current;
@@ -211,7 +220,13 @@ export default function RichNoteEditor(props: Props) {
     setHighlightUiActive(enabled);
     setHighlightUiColor(color);
     const editor = editorRef.current;
-    if (editor) syncHighlightAppearance(editor, color);
+    if (editor) {
+      if (enabled) {
+        editor.blur();
+        window.getSelection()?.removeAllRanges();
+      }
+      syncHighlightAppearance(editor, color);
+    }
   };
 
   const setHighlightChoice = (color: string) => {
@@ -294,8 +309,67 @@ export default function RichNoteEditor(props: Props) {
     event.stopPropagation();
   };
 
+  const beginDockDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const shell = shellRef.current?.getBoundingClientRect();
+    const dock = dockRef.current?.getBoundingClientRect();
+    if (!shell || !dock) return;
+
+    dockDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      baseX: dock.left - shell.left,
+      baseY: dock.top - shell.top,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const moveDock = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dockDragRef.current;
+    const shell = shellRef.current?.getBoundingClientRect();
+    const dock = dockRef.current?.getBoundingClientRect();
+    if (!drag || drag.pointerId !== event.pointerId || !shell || !dock) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) drag.moved = true;
+
+    const maxX = Math.max(4, shell.width - dock.width - 4);
+    const maxY = Math.max(8, shell.height - dock.height - 8);
+    setDockPosition({
+      x: Math.min(maxX, Math.max(4, drag.baseX + dx)),
+      y: Math.min(maxY, Math.max(8, drag.baseY + dy)),
+    });
+  };
+
+  const endDockDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dockDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    dockDragRef.current = null;
+    if (!drag.moved) setHighlightActive(!highlightUiActive, highlightUiColor);
+  };
+
+  const cancelDockDrag = () => {
+    dockDragRef.current = null;
+  };
+
+  const chooseColorFromControl = (event: React.PointerEvent<HTMLButtonElement>, color: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setHighlightChoice(color);
+  };
+
   return (
-    <div className="editor-shell">
+    <div ref={shellRef} className="editor-shell">
       <style>{`
         html, body, #root { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
         * { box-sizing: border-box; }
@@ -313,20 +387,21 @@ export default function RichNoteEditor(props: Props) {
         .sermon-rich-editor h2 { margin: 12px 0 6px; font-size: 24px; line-height: 31px; font-weight: 750; }
         .sermon-rich-editor blockquote { margin: 9px 0; padding-left: 12px; border-left: 3px solid ${props.placeholderColor}; opacity: 0.95; }
         .sermon-rich-editor ul { margin: 6px 0; padding-left: 26px; }
-        .sermon-rich-editor.highlighting { cursor: crosshair; touch-action: none; }
+        .sermon-rich-editor.highlighting { cursor: crosshair; touch-action: none; user-select: none; -webkit-user-select: none; }
         .sermon-rich-editor.highlighting::selection,
         .sermon-rich-editor.highlighting *::selection { background: var(--highlight-color); color: inherit; }
         .sermon-rich-editor.highlighting.erasing::selection,
         .sermon-rich-editor.highlighting.erasing *::selection { background: rgba(120, 120, 120, 0.24); color: inherit; }
-        .highlight-dock { position: absolute; right: 5px; top: 38%; z-index: 50; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .highlight-dock { position: absolute; right: 6px; top: 14%; z-index: 50; display: flex; flex-direction: column; align-items: center; gap: 6px; touch-action: none; }
         .highlight-launcher, .highlight-color, .highlight-close {
           appearance: none; border: 1px solid rgba(127,127,127,.26); background: rgba(30,36,31,.94);
           box-shadow: 0 4px 14px rgba(0,0,0,.16); display: flex; align-items: center; justify-content: center;
           -webkit-tap-highlight-color: transparent;
         }
-        .highlight-launcher { width: 46px; height: 46px; border-radius: 23px; color: ${props.textColor}; }
+        .highlight-launcher { width: 46px; height: 46px; border-radius: 23px; color: ${props.textColor}; cursor: grab; touch-action: none; }
+        .highlight-launcher:active { cursor: grabbing; }
         .highlight-launcher.active { border-width: 2px; border-color: rgba(255,255,255,.8); }
-        .highlight-icon { width: 23px; height: 23px; display: block; }
+        .highlight-launcher svg { width: 23px; height: 23px; }
         .highlight-palette { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 7px 4px; border-radius: 20px; background: rgba(30,36,31,.95); border: 1px solid rgba(127,127,127,.25); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
         .highlight-color { width: 36px; height: 36px; border-radius: 18px; padding: 4px; background: transparent; box-shadow: none; }
         .highlight-color.selected { border: 2px solid ${props.textColor}; }
@@ -340,9 +415,10 @@ export default function RichNoteEditor(props: Props) {
       <div
         ref={editorRef}
         className="sermon-rich-editor"
-        contentEditable
+        contentEditable={!highlightUiActive}
         suppressContentEditableWarning
-        spellCheck
+        spellCheck={!highlightUiActive}
+        inputMode={highlightUiActive ? 'none' : undefined}
         data-placeholder="Start writing what stands out…"
         onInput={emitChange}
         onKeyUp={saveSelection}
@@ -381,18 +457,25 @@ export default function RichNoteEditor(props: Props) {
         onPointerCancel={() => finishHighlight(null)}
       />
 
-      <div className="highlight-dock">
+      <div
+        ref={dockRef}
+        className="highlight-dock"
+        style={dockPosition ? { left: dockPosition.x, top: dockPosition.y, right: 'auto' } : undefined}
+      >
         <button
           type="button"
-          aria-label={highlightUiActive ? 'Exit highlight mode' : 'Start highlight mode'}
+          aria-label={highlightUiActive ? 'Move highlighter or tap to exit highlight mode' : 'Move highlighter or tap to start highlight mode'}
           className={`highlight-launcher${highlightUiActive ? ' active' : ''}`}
           style={{ background: highlightUiActive && highlightUiColor !== ERASE_HIGHLIGHT ? highlightUiColor : 'rgba(30,36,31,.94)' }}
-          onPointerDown={preventControlFocus}
-          onClick={() => setHighlightActive(!highlightUiActive, highlightUiColor)}
+          onPointerDown={beginDockDrag}
+          onPointerMove={moveDock}
+          onPointerUp={endDockDrag}
+          onPointerCancel={cancelDockDrag}
         >
-          <svg className="highlight-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="m9 11-6 6v3h9l3-3" />
-            <path d="m22 12-4.3 4.3a1 1 0 0 1-1.4 0L7.7 7.7a1 1 0 0 1 0-1.4L12 2Z" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m15.5 3.5 5 5-8.8 8.8-5-5 8.8-8.8Z" />
+            <path d="m6.7 12.3-3.2 3.2v5h5l3.2-3.2" />
+            <path d="M3 21h18" />
           </svg>
         </button>
 
@@ -406,7 +489,7 @@ export default function RichNoteEditor(props: Props) {
                   aria-label={`Highlight color ${color}`}
                   className={`highlight-color${highlightUiColor === color ? ' selected' : ''}`}
                   onPointerDown={preventControlFocus}
-                  onClick={() => setHighlightChoice(color)}
+                  onPointerUp={(event) => chooseColorFromControl(event, color)}
                 >
                   <span className="highlight-dot" style={{ background: color }} />
                 </button>
@@ -416,11 +499,23 @@ export default function RichNoteEditor(props: Props) {
                 aria-label="Remove highlight"
                 className={`highlight-color${highlightUiColor === ERASE_HIGHLIGHT ? ' selected' : ''}`}
                 onPointerDown={preventControlFocus}
-                onClick={() => setHighlightChoice(ERASE_HIGHLIGHT)}
+                onPointerUp={(event) => chooseColorFromControl(event, ERASE_HIGHLIGHT)}
               >
                 <span className="erase-dot" />
               </button>
-              <button type="button" aria-label="Close highlight mode" className="highlight-close" onPointerDown={preventControlFocus} onClick={() => setHighlightActive(false, highlightUiColor)}>×</button>
+              <button
+                type="button"
+                aria-label="Close highlight mode"
+                className="highlight-close"
+                onPointerDown={preventControlFocus}
+                onPointerUp={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setHighlightActive(false, highlightUiColor);
+                }}
+              >
+                ×
+              </button>
             </div>
             <div className="highlight-tip">{highlightUiColor === ERASE_HIGHLIGHT ? 'Swipe highlighted words to erase' : 'Swipe words to highlight'}</div>
           </>
