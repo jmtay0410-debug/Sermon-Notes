@@ -6,6 +6,7 @@ import { useDOMImperativeHandle, type DOMImperativeFactory } from 'expo/dom';
 
 const ERASE_HIGHLIGHT = '__remove_highlight__';
 const HIGHLIGHT_COLORS = ['#F6E27A', '#BFE3C0', '#B8DDF6', '#F4BDD0', '#F4C37D'];
+const HIGHLIGHT_OPACITY = 0.48;
 
 export interface RichNoteEditorRef extends DOMImperativeFactory {
   focus: (...args: any[]) => void;
@@ -40,6 +41,29 @@ type Props = {
   placeholderColor: string;
   onContentChange: (html: string, text: string) => Promise<void>;
 };
+
+function withHighlightOpacity(color: string, alpha = HIGHLIGHT_OPACITY) {
+  const value = color.trim();
+  let hex = value.startsWith('#') ? value.slice(1) : '';
+
+  if (hex.length === 3) {
+    hex = hex.split('').map((character) => `${character}${character}`).join('');
+  }
+
+  if (/^[0-9a-f]{6}$/i.test(hex)) {
+    const red = Number.parseInt(hex.slice(0, 2), 16);
+    const green = Number.parseInt(hex.slice(2, 4), 16);
+    const blue = Number.parseInt(hex.slice(4, 6), 16);
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+  }
+
+  const rgb = value.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  if (rgb) {
+    return `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${alpha})`;
+  }
+
+  return value;
+}
 
 function caretPointFromCoordinates(x: number, y: number): CaretPoint | null {
   const doc = document as Document & {
@@ -116,7 +140,7 @@ function applyHighlight(editor: HTMLElement, range: Range, color: string) {
     const selected = start > 0 ? node.splitText(start) : node;
     const mark = document.createElement('span');
     mark.dataset.sermonHighlight = 'true';
-    mark.style.backgroundColor = color;
+    mark.style.backgroundColor = withHighlightOpacity(color);
     mark.style.borderRadius = '0.18em';
     mark.style.padding = '0 0.035em';
     selected.parentNode?.insertBefore(mark, selected);
@@ -213,7 +237,7 @@ export default function RichNoteEditor(props: Props) {
     const erasing = color === ERASE_HIGHLIGHT;
     editor.classList.toggle('highlighting', highlightModeRef.current);
     editor.classList.toggle('erasing', highlightModeRef.current && erasing);
-    editor.style.setProperty('--highlight-color', erasing ? 'rgba(120, 120, 120, 0.24)' : color);
+    editor.style.setProperty('--highlight-color', erasing ? 'rgba(120, 120, 120, 0.24)' : withHighlightOpacity(color));
   };
 
   const setHighlightActive = (enabled: boolean, color = highlightColorRef.current) => {
@@ -272,6 +296,9 @@ export default function RichNoteEditor(props: Props) {
     const editor = editorRef.current;
     if (!editor) return;
     editor.innerHTML = props.initialHtml;
+    editor.querySelectorAll<HTMLElement>('[data-sermon-highlight="true"]').forEach((mark) => {
+      if (mark.style.backgroundColor) mark.style.backgroundColor = withHighlightOpacity(mark.style.backgroundColor);
+    });
     savedRangeRef.current = null;
   }, [props.sermonKey]);
 
@@ -382,7 +409,7 @@ export default function RichNoteEditor(props: Props) {
         button { font: inherit; }
         .editor-shell { position: relative; width: 100%; height: 100%; overflow: hidden; }
         .sermon-rich-editor {
-          --highlight-color: #F6E27A;
+          --highlight-color: rgba(246, 226, 122, ${HIGHLIGHT_OPACITY});
           width: 100%; height: 100%; min-height: 100%; overflow-y: auto; outline: none;
           padding: 8px 54px 28px 2px; color: ${props.textColor}; background: transparent;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
