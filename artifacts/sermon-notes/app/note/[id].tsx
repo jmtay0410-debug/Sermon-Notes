@@ -42,6 +42,8 @@ export default function NoteScreen() {
   const sermon = sermons.find((item) => item.id === id);
 
   const editorRef = React.useRef<RichNoteEditorRef>(null);
+  const prayerInputRef = React.useRef<TextInput>(null);
+  const prayerSavedTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialHtmlRef = React.useRef<{ sermonId: string; html: string } | null>(null);
   const [editorSize, setEditorSize] = useState({ width: 1, height: 180 });
   const [category, setCategory] = useState<typeof categories[number] | null>(null);
@@ -50,6 +52,9 @@ export default function NoteScreen() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [biblePreview, setBiblePreview] = useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [quickPrayerOpen, setQuickPrayerOpen] = useState(false);
+  const [quickPrayerText, setQuickPrayerText] = useState('');
+  const [prayerSaved, setPrayerSaved] = useState(false);
 
   React.useEffect(() => {
     setActiveSermonId(id ?? null);
@@ -63,6 +68,10 @@ export default function NoteScreen() {
       showSubscription.remove();
       hideSubscription.remove();
     };
+  }, []);
+
+  React.useEffect(() => () => {
+    if (prayerSavedTimerRef.current) clearTimeout(prayerSavedTimerRef.current);
   }, []);
 
   const reference = useMemo(
@@ -93,8 +102,40 @@ export default function NoteScreen() {
     editorRef.current?.insertText(value);
   };
 
+  const closeQuickPrayer = () => {
+    Keyboard.dismiss();
+    setQuickPrayerOpen(false);
+    setQuickPrayerText('');
+  };
+
+  const openQuickPrayer = () => {
+    disableHighlightMode();
+    setCategory(null);
+    setCategoryText('');
+    setPrayerSaved(false);
+    setQuickPrayerOpen(true);
+    requestAnimationFrame(() => prayerInputRef.current?.focus());
+  };
+
+  const submitQuickPrayer = () => {
+    const trimmed = quickPrayerText.trim();
+    if (!trimmed) return;
+
+    addTaggedItem(sermon.id, 'prayers', trimmed);
+    Keyboard.dismiss();
+    setQuickPrayerText('');
+    setQuickPrayerOpen(false);
+    setPrayerSaved(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    if (prayerSavedTimerRef.current) clearTimeout(prayerSavedTimerRef.current);
+    prayerSavedTimerRef.current = setTimeout(() => setPrayerSaved(false), 1800);
+  };
+
   const openCategory = (item: typeof categories[number]) => {
     disableHighlightMode();
+    setQuickPrayerOpen(false);
+    setQuickPrayerText('');
     Keyboard.dismiss();
     setCategoryText('');
     setCategory(item);
@@ -173,27 +214,76 @@ export default function NoteScreen() {
               <Text style={[styles.topFormatText, { color: colors.secondaryForeground }]}>Formatting</Text>
             </Pressable>
 
-            {topMomentActions.map((item) => (
+            {topMomentActions.map((item) => {
+              const prayerActive = item.kind === 'prayers' && quickPrayerOpen;
+              return (
+                <Pressable
+                  key={item.kind}
+                  accessibilityLabel={`Add ${item.label}`}
+                  onPress={() => {
+                    if (item.kind === 'prayers') {
+                      if (quickPrayerOpen) closeQuickPrayer();
+                      else openQuickPrayer();
+                    } else {
+                      openCategory(item);
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    styles.topQuickAction,
+                    {
+                      backgroundColor: prayerActive ? colors.accent : colors.secondary,
+                      borderColor: prayerActive ? colors.primary : colors.border,
+                      opacity: pressed ? 0.68 : 1,
+                    },
+                  ]}
+                >
+                  <Feather name={item.icon} size={13} color={colors.primary} />
+                  <Text numberOfLines={1} style={[styles.topQuickActionText, { color: colors.secondaryForeground }]}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {quickPrayerOpen ? (
+            <View style={[styles.quickPrayerBar, { backgroundColor: colors.card, borderColor: colors.primary }]}>
+              <View style={[styles.quickPrayerIcon, { backgroundColor: colors.accent }]}>
+                <Feather name="heart" size={15} color={colors.primary} />
+              </View>
+              <TextInput
+                ref={prayerInputRef}
+                autoFocus
+                value={quickPrayerText}
+                onChangeText={setQuickPrayerText}
+                placeholder="What should you pray about?"
+                placeholderTextColor={colors.mutedForeground}
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={submitQuickPrayer}
+                style={[styles.quickPrayerInput, { color: colors.foreground }]}
+              />
               <Pressable
-                key={item.kind}
-                accessibilityLabel={`Add ${item.label}`}
-                onPress={() => openCategory(item)}
+                accessibilityLabel="Save prayer"
+                disabled={!quickPrayerText.trim()}
+                onPress={submitQuickPrayer}
                 style={({ pressed }) => [
-                  styles.topQuickAction,
+                  styles.quickPrayerSave,
                   {
-                    backgroundColor: colors.secondary,
-                    borderColor: colors.border,
-                    opacity: pressed ? 0.68 : 1,
+                    backgroundColor: quickPrayerText.trim() ? colors.primary : colors.secondary,
+                    opacity: pressed ? 0.65 : quickPrayerText.trim() ? 1 : 0.55,
                   },
                 ]}
               >
-                <Feather name={item.icon} size={13} color={colors.primary} />
-                <Text numberOfLines={1} style={[styles.topQuickActionText, { color: colors.secondaryForeground }]}>
-                  {item.label}
-                </Text>
+                <Feather name="check" size={17} color={quickPrayerText.trim() ? colors.primaryForeground : colors.mutedForeground} />
               </Pressable>
-            ))}
-          </View>
+            </View>
+          ) : prayerSaved ? (
+            <View style={[styles.prayerSavedBanner, { backgroundColor: colors.accent }]}>
+              <Feather name="check-circle" size={14} color={colors.primary} />
+              <Text style={[styles.prayerSavedText, { color: colors.accentForeground }]}>Prayer saved to your prayer list</Text>
+            </View>
+          ) : null}
 
           {toolbarOpen ? (
             <View style={[styles.topFormatPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -396,6 +486,12 @@ const styles = StyleSheet.create({
   topFormatText: { fontSize: 10, fontWeight: '700' },
   topQuickAction: { minHeight: 34, borderWidth: 1, borderRadius: 10, paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
   topQuickActionText: { fontSize: 10, fontWeight: '700', flexShrink: 1 },
+  quickPrayerBar: { minHeight: 48, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  quickPrayerIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  quickPrayerInput: { flex: 1, minHeight: 42, fontSize: 15, paddingVertical: 8, paddingHorizontal: 0 },
+  quickPrayerSave: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  prayerSavedBanner: { minHeight: 34, borderRadius: 11, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start' },
+  prayerSavedText: { fontSize: 11, fontWeight: '700' },
   topFormatPanel: { borderWidth: 1, borderRadius: 13, padding: 7, flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'flex-start' },
   formatTool: { width: 37, height: 37, borderRadius: 9, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   detailToggle: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 2 },
