@@ -108,12 +108,36 @@ export default function NoteScreen() {
       >
         <View style={styles.noteHeader}>
           <IconButton icon="chevron-left" label="Back" onPress={() => router.back()} />
+
           <View style={styles.noteHeading}>
-            <Text numberOfLines={1} style={[styles.noteTitle, { color: colors.foreground }]}>{sermon.title}</Text>
+            <Text numberOfLines={1} style={[styles.noteTitle, { color: colors.foreground }]}>
+              {sermon.title}
+            </Text>
             <Text numberOfLines={1} style={[styles.noteMeta, { color: colors.mutedForeground }]}>
               {sermon.mainScripture || 'Add a passage'} · {sermon.pastor} · {formatDate(sermon.date)}
             </Text>
           </View>
+
+          {keyboardVisible ? (
+            <Pressable
+              testID="Header dismiss keyboard"
+              accessibilityLabel="Hide keyboard"
+              onPress={Keyboard.dismiss}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.headerKeyboardButton,
+                {
+                  backgroundColor: colors.secondary,
+                  borderColor: colors.border,
+                  opacity: pressed ? 0.6 : 1,
+                },
+              ]}
+            >
+              <Feather name="chevron-down" size={16} color={colors.primary} />
+              <Text style={[styles.headerKeyboardText, { color: colors.secondaryForeground }]}>Done</Text>
+            </Pressable>
+          ) : null}
+
           <Pressable
             testID="Finish sermon"
             hitSlop={8}
@@ -182,7 +206,10 @@ export default function NoteScreen() {
               testID="Dismiss keyboard"
               accessibilityLabel="Dismiss keyboard"
               onPress={Keyboard.dismiss}
-              style={({ pressed }) => [styles.keyboardButton, { backgroundColor: colors.secondary, opacity: pressed ? 0.6 : 1 }]}
+              style={({ pressed }) => [
+                styles.keyboardButton,
+                { backgroundColor: colors.secondary, opacity: pressed ? 0.6 : 1 },
+              ]}
             >
               <Feather name="chevron-down" size={17} color={colors.primary} />
               <Text style={[styles.keyboardText, { color: colors.secondaryForeground }]}>Done</Text>
@@ -194,7 +221,9 @@ export default function NoteScreen() {
               style={({ pressed }) => [styles.formatButton, { opacity: pressed ? 0.6 : 1 }]}
             >
               <Feather name={toolbarOpen ? 'chevron-down' : 'sliders'} size={18} color={colors.primary} />
-              <Text style={[styles.toolbarLabel, { color: colors.primary }]}>{toolbarOpen ? 'Hide tools' : 'Format'}</Text>
+              <Text style={[styles.toolbarLabel, { color: colors.primary }]}>
+                {toolbarOpen ? 'Hide tools' : 'Format'}
+              </Text>
             </Pressable>
 
             <View style={styles.quickActions}>
@@ -202,7 +231,10 @@ export default function NoteScreen() {
                 <Pressable
                   key={item.kind}
                   onPress={() => openCategory(item)}
-                  style={({ pressed }) => [styles.quickAction, { backgroundColor: colors.secondary, opacity: pressed ? 0.7 : 1 }]}
+                  style={({ pressed }) => [
+                    styles.quickAction,
+                    { backgroundColor: colors.secondary, opacity: pressed ? 0.7 : 1 },
+                  ]}
                 >
                   <Feather name={item.icon} size={14} color={colors.primary} />
                   <Text style={[styles.quickActionText, { color: colors.secondaryForeground }]}>{item.label}</Text>
@@ -256,7 +288,14 @@ export default function NoteScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 multiline
                 blurOnSubmit={false}
-                style={[styles.categoryInput, { backgroundColor: colors.background, borderColor: colors.input, color: colors.foreground }]}
+                style={[
+                  styles.categoryInput,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.input,
+                    color: colors.foreground,
+                  },
+                ]}
               />
 
               {keyboardVisible ? (
@@ -264,7 +303,10 @@ export default function NoteScreen() {
                   <Pressable
                     accessibilityLabel="Hide keyboard"
                     onPress={Keyboard.dismiss}
-                    style={[styles.keyboardDoneButton, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                    style={[
+                      styles.keyboardDoneButton,
+                      { backgroundColor: colors.secondary, borderColor: colors.border },
+                    ]}
                   >
                     <Feather name="chevron-down" size={17} color={colors.primary} />
                     <Text style={[styles.keyboardDoneText, { color: colors.secondaryForeground }]}>Done</Text>
@@ -309,7 +351,10 @@ function ToolbarButton({ icon, label, onPress }: { icon: keyof typeof Feather.gl
     <Pressable
       accessibilityLabel={label}
       onPress={onPress}
-      style={({ pressed }) => [styles.toolButton, { backgroundColor: colors.secondary, opacity: pressed ? 0.65 : 1 }]}
+      style={({ pressed }) => [
+        styles.toolButton,
+        { backgroundColor: colors.secondary, opacity: pressed ? 0.65 : 1 },
+      ]}
     >
       <Feather name={icon} size={16} color={colors.secondaryForeground} />
     </Pressable>
@@ -319,12 +364,23 @@ function ToolbarButton({ icon, label, onPress }: { icon: keyof typeof Feather.gl
 const styles = StyleSheet.create({
   screen: { flex: 1, gap: 0 },
   keyboardView: { flex: 1, gap: 8 },
-  noteHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  noteHeading: { flex: 1, gap: 3 },
+  noteHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  noteHeading: { flex: 1, gap: 3, minWidth: 0 },
   noteTitle: { fontSize: 17, fontWeight: '700' },
   noteMeta: { fontSize: 11 },
-  finishButton: { paddingVertical: 9, paddingLeft: 7 },
+  finishButton: { paddingVertical: 9, paddingLeft: 5 },
   finishText: { fontSize: 14, fontWeight: '700' },
+  headerKeyboardButton: {
+    minHeight: 34,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  headerKeyboardText: { fontSize: 12, fontWeight: '700' },
   detailToggle: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 2 },
   saveDot: { width: 6, height: 6, borderRadius: 3 },
   detailToggleText: { fontSize: 11, fontWeight: '600' },
